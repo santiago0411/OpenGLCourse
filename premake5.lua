@@ -1,6 +1,6 @@
-workspace "OpenGLApp"
+workspace "OpenGLCourse"
 	architecture "x64"
-	startproject "OpenGLApp"
+	startproject "OpenGLCourse"
 
 	configurations 
 	{ 
@@ -22,4 +22,4 @@ group "Dependencies"
 	include "vendor/ImGui"
 group ""
 
-include "OpenGLApp"
+include "OpenGLCourse"

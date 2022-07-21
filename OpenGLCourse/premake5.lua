@@ -1,4 +1,4 @@
-project "OpenGLApp"
+project "OpenGLCourse"
 	kind "ConsoleApp"
 	language "C++"
 	cppdialect "C++20"
