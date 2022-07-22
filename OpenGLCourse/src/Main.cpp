@@ -5,6 +5,10 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 using BufferIds = std::tuple<uint32_t, uint32_t>;
 
 struct RenderData
@@ -12,6 +16,7 @@ struct RenderData
 	uint32_t VertexArray;
 	uint32_t IndexBuffer;
 	uint32_t ShaderProgram;
+	int32_t ModelUniformId;
 
 	explicit RenderData(const BufferIds& ids, uint32_t shaderId)
 	{
@@ -20,6 +25,7 @@ struct RenderData
 		VertexArray = vao;
 		IndexBuffer = ibo;
 		ShaderProgram = shaderId;
+		ModelUniformId = glGetUniformLocation(shaderId, "model");
 	}
 };
 
@@ -28,9 +34,11 @@ static std::string s_VertexShader = R"(
 
 layout (location = 0) in vec3 pos;
 
+uniform mat4 model;
+
 void main()
 {
-	gl_Position = vec4(pos, 1.0);
+	gl_Position = model * vec4(pos, 1.0);
 }
 )";
 
@@ -165,9 +173,21 @@ int main()
 	glUseProgram(data.ShaderProgram);
 	glBindVertexArray(data.VertexArray);
 
+	static float offset = 0.0f;
+	static bool direction = false;
+	constexpr float increment = 0.00075f;
+
 	while (!glfwWindowShouldClose(window))
 	{
 		glClear(GL_COLOR_BUFFER_BIT);
+
+		offset += direction ? increment : -increment;
+		if (std::abs(offset) >= 1.0f)
+			direction = !direction;
+
+		glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(offset, 0.0f, 0.0f));
+		glUniformMatrix4fv(data.ModelUniformId, 1, GL_FALSE, glm::value_ptr(model));
+
 		glDrawArrays(GL_TRIANGLES, 0, 3);
 
 		glfwSwapBuffers(window);
