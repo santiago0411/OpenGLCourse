@@ -112,8 +112,16 @@ static BufferIds CreateTriangle()
 {
 	constexpr float vertices[] = {
 		-0.5f, -0.5f, 0.0f,
+		 0.0f, -0.5f, 0.5f,
 		 0.5f, -0.5f, 0.0f,
 		 0.0f,  0.5f, 0.0f,
+	};
+
+	constexpr uint32_t indices[] = {
+		0, 1, 3,
+		1, 2, 3,
+		0, 2, 3,
+		0, 1, 2,
 	};
 
 	uint32_t vao;
@@ -125,13 +133,19 @@ static BufferIds CreateTriangle()
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glBufferData(GL_ARRAY_BUFFER, sizeof vertices, vertices, GL_STATIC_DRAW);
 
+	uint32_t ibo;
+	glGenBuffers(1, &ibo);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof indices, indices, GL_STATIC_DRAW);
+
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
 	glEnableVertexAttribArray(0);
 
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
-	return { vao, 0 };
+	return { vao, ibo };
 }
 
 int main()
@@ -174,26 +188,33 @@ int main()
 	std::cout << "\tRenderer: " << glGetString(GL_RENDERER) << "\n";
 	std::cout << "\tVersion: " << glGetString(GL_VERSION) << "\n";
 
+	glEnable(GL_DEPTH_TEST);
+
 	const RenderData data(CreateTriangle(), CompileShaders());
 	glUseProgram(data.ShaderProgram);
 	glBindVertexArray(data.VertexArray);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, data.IndexBuffer);
 
 	static float offset = 0.0f;
 	static bool direction = false;
 	constexpr float increment = 0.00075f;
+	static float angle = 0.0f;
 
 	while (!glfwWindowShouldClose(window))
 	{
-		glClear(GL_COLOR_BUFFER_BIT);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		offset += direction ? increment : -increment;
 		if (std::abs(offset) >= 0.5f)
 			direction = !direction;
 
-		glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(offset, 0.0f, 0.0f));
+		angle += 0.5f;
+
+		glm::mat4 model = glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
+			// glm::translate(glm::mat4(1.0f), glm::vec3(offset, 0.0f, 0.0f));
 		glUniformMatrix4fv(data.ModelUniformId, 1, GL_FALSE, glm::value_ptr(model));
 
-		glDrawArrays(GL_TRIANGLES, 0, 3);
+		glDrawElements(GL_TRIANGLES, 12, GL_UNSIGNED_INT, nullptr);
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
