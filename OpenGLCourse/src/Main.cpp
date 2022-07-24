@@ -30,26 +30,31 @@ struct RenderData
 };
 
 static std::string s_VertexShader = R"(
-#version 330
+#version 450
 
 layout (location = 0) in vec3 pos;
 
 uniform mat4 model;
 
+layout (location = 0) out vec4 o_Color;
+
 void main()
 {
 	gl_Position = model * vec4(pos, 1.0);
+	o_Color = vec4(clamp(pos, 0.0f, 1.0f), 1.0f);
 }
 )";
 
 static std::string s_FragShader = R"(
-#version 330
+#version 450
 
 out vec4 o_Color;
 
+layout (location = 0) in vec4 col;
+
 void main()
 {
-	o_Color = vec4(1.0, 0.0, 0.0, 1.0);
+	o_Color = col;
 }
 )";
 
@@ -182,7 +187,7 @@ int main()
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		offset += direction ? increment : -increment;
-		if (std::abs(offset) >= 1.0f)
+		if (std::abs(offset) >= 0.5f)
 			direction = !direction;
 
 		glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(offset, 0.0f, 0.0f));
