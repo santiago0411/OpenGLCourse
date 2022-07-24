@@ -17,6 +17,7 @@ struct RenderData
 	uint32_t IndexBuffer;
 	uint32_t ShaderProgram;
 	int32_t ModelUniformId;
+	int32_t ProjectionUniformId;
 
 	explicit RenderData(const BufferIds& ids, uint32_t shaderId)
 	{
@@ -26,6 +27,7 @@ struct RenderData
 		IndexBuffer = ibo;
 		ShaderProgram = shaderId;
 		ModelUniformId = glGetUniformLocation(shaderId, "model");
+		ProjectionUniformId = glGetUniformLocation(shaderId, "projection");
 	}
 };
 
@@ -35,12 +37,13 @@ static std::string s_VertexShader = R"(
 layout (location = 0) in vec3 pos;
 
 uniform mat4 model;
+uniform mat4 projection;
 
 layout (location = 0) out vec4 o_Color;
 
 void main()
 {
-	gl_Position = model * vec4(pos, 1.0);
+	gl_Position = projection * model * vec4(pos, 1.0);
 	o_Color = vec4(clamp(pos, 0.0f, 1.0f), 1.0f);
 }
 )";
@@ -108,7 +111,7 @@ static uint32_t CompileShaders()
 	return program;
 }
 
-static BufferIds CreateTriangle()
+static BufferIds CreatePyramid()
 {
 	constexpr float vertices[] = {
 		-0.5f, -0.5f, 0.0f,
@@ -165,7 +168,8 @@ int main()
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-	GLFWwindow* window = glfwCreateWindow(1400, 1050, "OpenGLApp", nullptr, nullptr);
+	constexpr int32_t width = 1400, height = 1050;
+	GLFWwindow* window = glfwCreateWindow(width, height, "OpenGLApp", nullptr, nullptr);
 	if (!window)
 	{
 		std::cerr << "Failed to create GLFW window. Exiting application...\n";
@@ -190,29 +194,26 @@ int main()
 
 	glEnable(GL_DEPTH_TEST);
 
-	const RenderData data(CreateTriangle(), CompileShaders());
+	const RenderData data(CreatePyramid(), CompileShaders());
 	glUseProgram(data.ShaderProgram);
 	glBindVertexArray(data.VertexArray);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, data.IndexBuffer);
 
-	static float offset = 0.0f;
-	static bool direction = false;
-	constexpr float increment = 0.00075f;
+	const glm::mat4 projection = glm::perspective(45.0f, (float)width/height, 0.1f, 100.0f);
+
 	static float angle = 0.0f;
 
 	while (!glfwWindowShouldClose(window))
 	{
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		offset += direction ? increment : -increment;
-		if (std::abs(offset) >= 0.5f)
-			direction = !direction;
-
 		angle += 0.5f;
 
-		glm::mat4 model = glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
-			// glm::translate(glm::mat4(1.0f), glm::vec3(offset, 0.0f, 0.0f));
+		glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -2.5f));
+		model = glm::rotate(model, glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
+
 		glUniformMatrix4fv(data.ModelUniformId, 1, GL_FALSE, glm::value_ptr(model));
+		glUniformMatrix4fv(data.ProjectionUniformId, 1, GL_FALSE, glm::value_ptr(projection));
 
 		glDrawElements(GL_TRIANGLES, 12, GL_UNSIGNED_INT, nullptr);
 
