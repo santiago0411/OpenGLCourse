@@ -32,6 +32,53 @@ static Mesh CreatePyramid()
 	return mesh;
 }
 
+static bool OnKeyPressed(KeyPressedEvent& e)
+{
+	std::cout << "Key pressed: " << e.GetKey() << " Repeated: " << e.IsRepeated() << '\n';
+	return true;
+}
+
+static bool OnKeyReleased(KeyReleasedEvent& e)
+{
+	std::cout << "Key released: " << e.GetKey() << '\n';
+	return true;
+}
+
+static bool OnMouseButtonPressed(MouseButtonPressedEvent& e)
+{
+	std::cout << "Mouse button pressed: " << e.GetMouseButton() << '\n';
+	return true;
+}
+
+static bool OnMouseButtonReleased(MouseButtonReleasedEvent& e)
+{
+	std::cout << "Mouse button released: " << e.GetMouseButton() << '\n';
+	return true;
+}
+
+static bool OnMouseScrolled(MouseScrolledEvent& e)
+{
+	std::cout << "Mouse scrolled: {" << e.GetOffSetX() << ", " << e.GetOffSetY() << "}\n";
+	return true;
+}
+
+static bool OnMouseMoved(MouseMovedEvent& e)
+{
+	std::cout << "Mouse moused: {" << e.GetX() << ", " << e.GetY() << "}\n";
+	return true;
+}
+
+static void OnEvent(Event& event)
+{
+	EventDispatcher dispatcher(event);
+	dispatcher.Dispatch<KeyPressedEvent>(OnKeyPressed);
+	dispatcher.Dispatch<KeyReleasedEvent>(OnKeyReleased);
+	dispatcher.Dispatch<MouseButtonPressedEvent>(OnMouseButtonPressed);
+	dispatcher.Dispatch<MouseButtonReleasedEvent>(OnMouseButtonReleased);
+	dispatcher.Dispatch<MouseScrolledEvent>(OnMouseScrolled);
+	dispatcher.Dispatch<MouseMovedEvent>(OnMouseMoved);
+}
+
 int main()
 {
 	WindowProps props;
@@ -43,6 +90,8 @@ int main()
 
 	if (!window->Init())
 		return -1;
+
+	window->SetEventCallback(&OnEvent);
 
 	std::vector<Mesh> meshes;
 	meshes.emplace_back(CreatePyramid());

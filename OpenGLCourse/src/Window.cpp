@@ -48,6 +48,7 @@ bool Window::Init()
 	}
 
 	glfwSwapInterval(1);
+	SetEvents();
 
 	return true;
 }
@@ -101,4 +102,71 @@ void Window::CreateGlfwWindow()
 	// Finally show the window and increase the window count
 	glfwShowWindow(m_Window);
 	s_GLFWWindowCount++;
+}
+
+void Window::SetEvents()
+{
+	glfwSetWindowUserPointer(m_Window, &m_EventCallback);
+
+	glfwSetKeyCallback(m_Window, [](GLFWwindow* window, int32_t key, int32_t scanCode, int32_t action, int32_t modes)
+	{
+		const auto& eventCallback = *(EventCallbackFunction*)glfwGetWindowUserPointer(window);
+
+		switch (action)
+		{
+			case GLFW_PRESS:
+			{
+				KeyPressedEvent event((KeyCode)key, false);
+				eventCallback(event);
+				break;
+			}
+			case GLFW_RELEASE:
+			{
+				KeyReleasedEvent event((KeyCode)key);
+				eventCallback(event);
+				break;
+			}
+			case GLFW_REPEAT:
+			{
+				KeyPressedEvent event((KeyCode)key, true);
+				eventCallback(event);
+				break;
+			}
+		}
+	});
+
+	glfwSetMouseButtonCallback(m_Window, [](GLFWwindow* window, int32_t button, int32_t action, int32_t modes)
+	{
+		const auto& eventCallback = *(EventCallbackFunction*)glfwGetWindowUserPointer(window);
+
+		switch (action)
+		{
+			case GLFW_PRESS:
+			{
+				MouseButtonPressedEvent event((MouseCode)button);
+				eventCallback(event);
+				break;
+			}
+			case GLFW_RELEASE:
+			{
+				MouseButtonReleasedEvent event((MouseCode)button);
+				eventCallback(event);
+				break;
+			}
+		}
+	});
+
+	glfwSetScrollCallback(m_Window, [](GLFWwindow* window, double xOffset, double yOffset)
+	{
+		const auto& eventCallback = *(EventCallbackFunction*)glfwGetWindowUserPointer(window);
+		MouseScrolledEvent event((float)xOffset, (float)yOffset);
+		eventCallback(event);
+	});
+
+	glfwSetCursorPosCallback(m_Window, [](GLFWwindow* window, double x, double y)
+	{
+		const auto& eventCallback = *(EventCallbackFunction*)glfwGetWindowUserPointer(window);
+		MouseMovedEvent event((float)x, (float)y);
+		eventCallback(event);
+	});
 }
