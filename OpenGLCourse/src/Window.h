@@ -33,6 +33,8 @@ public:
 
 	void SetEventCallback(const EventCallbackFunction& callback) { m_EventCallback = callback; }
 
+	float GetCurrentTime() const;
+
 	uint32_t GetWindowWidth() const { return m_WindowProps.Width; }
 	uint32_t GetWindowHeight() const { return m_WindowProps.Height; }
 
@@ -49,5 +51,7 @@ private:
 
 	WindowProps m_WindowProps;
 	inline static uint8_t s_GLFWWindowCount = 0;
+
+	friend class Input;
 };
 

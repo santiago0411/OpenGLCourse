@@ -64,6 +64,11 @@ void Window::OnUpdate() const
 	glfwSwapBuffers(m_Window);
 }
 
+float Window::GetCurrentTime() const
+{
+	return (float)glfwGetTime();
+}
+
 glm::vec2 Window::GetBufferSize() const
 {
 	int32_t width, height;
