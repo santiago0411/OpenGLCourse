@@ -8,18 +8,19 @@ project "OpenGLCourse"
 	files 
 	{ 
 		"src/**.h",
-		"src/**.cpp"
+		"src/**.cpp",
+		"vendor/stb_image/**.h",
+		"vendor/stb_image/**.cpp"
 	}
 
 	includedirs
 	{
+		"src",
 		"%{wks.location}/vendor/GLFW/include",
 		"%{wks.location}/vendor/Glad/include",
 		"%{wks.location}/vendor/ImGui",
-		"%{wks.location}/vendor/glm",
-
-		"src/**.h",
-		"src/**.cpp"
+		"vendor/glm",
+		"vendor/stb_image"
 	}
 
 	defines
