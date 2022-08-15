@@ -13,11 +13,11 @@ static void OpenGLMessageCallback(uint32_t source, uint32_t type, uint32_t id, u
 	{
 		case GL_DEBUG_SEVERITY_HIGH:
 		case GL_DEBUG_SEVERITY_MEDIUM:
-			std::cerr << message;
+			std::cerr << message << '\n';
 			return;
 		case GL_DEBUG_SEVERITY_LOW:
 		case GL_DEBUG_SEVERITY_NOTIFICATION:
-			std::cout << message;
+			std::cout << message << '\n';
 			return;
 	}
 }

@@ -9,6 +9,7 @@
 #include "Input.h"
 #include "Mesh.h"
 #include "Shader.h"
+#include "Texture2D.h"
 #include "Window.h"
 
 #include "OpenGLContext.h"
@@ -18,11 +19,12 @@ static float s_LastFrameTime = 0.0f;
 
 static Mesh CreatePyramid()
 {
+	// X-Y-Z U-V
 	float vertices[] = {
-		-0.5f, -0.5f, 0.0f,
-		 0.0f, -0.5f, 0.5f,
-		 0.5f, -0.5f, 0.0f,
-		 0.0f,  0.5f, 0.0f,
+		-0.5f, -0.5f, 0.0f, 0.0f, 0.0f,
+		 0.0f, -0.5f, 0.5f, 0.5f, 0.0f,
+		 0.5f, -0.5f, 0.0f, 1.0f, 0.0f,
+		 0.0f,  0.5f, 0.0f, 0.5f, 1.0f,
 	};
 
 	uint32_t indices[] = {
@@ -98,6 +100,12 @@ int main()
 
 	window->SetEventCallback(&OnEvent);
 	Input::SetContext(window);
+
+	std::vector<Texture2D> textures;
+	textures.emplace_back(Texture2D("textures/brick.png"));
+	textures.emplace_back(Texture2D("textures/dirt.png"));
+
+	textures[1].Bind();
 
 	std::vector<Mesh> meshes;
 	meshes.emplace_back(CreatePyramid());
