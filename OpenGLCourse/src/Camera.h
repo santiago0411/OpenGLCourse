@@ -3,13 +3,25 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+struct CameraSpecification
+{
+	glm::vec3 Position;
+	glm::vec3 WorldUp;
+	float Yaw;
+	float Pitch;
+	float Speed;
+	float TurnSpeed;
+};
+
 class Camera
 {
 public:
-	Camera(glm::vec3 position, glm::vec3 worldUp, float yaw, float pitch, float speed, float turnSpeed);
+	Camera(const CameraSpecification& spec);
 	~Camera() = default;
 
 	void OnUpdate(float deltaTime);
+
+	glm::vec3 GetPosition() const { return m_Position; }
 
 	glm::mat4 CalculateViewMatrix() const;
 

@@ -16,6 +16,9 @@ public:
 
 	void Bind() const;
 
+
+	void UploadUniformFloat(const std::string& name, float value) const;
+	void UploadUniformFloat3(const std::string& name, const glm::vec3& vec) const;
 	void UploadUniformMat4(const std::string& name, const glm::mat4& matrix) const;
 
 private:

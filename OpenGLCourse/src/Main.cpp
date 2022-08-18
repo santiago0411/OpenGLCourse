@@ -7,6 +7,8 @@
 
 #include "Camera.h"
 #include "Input.h"
+#include "Light.h"
+#include "Material.h"
 #include "Mesh.h"
 #include "Shader.h"
 #include "Texture2D.h"
@@ -14,28 +16,53 @@
 
 #include "OpenGLContext.h"
 
-static Camera* s_Camera;
-static float s_LastFrameTime = 0.0f;
+static void CalculateAverageNormals(float* vertices, uint32_t verticesCount, uint32_t stride, uint32_t* indices, uint32_t indicesCount, uint32_t normalsOffset)
+{
+	for (size_t i = 0; i < indicesCount; i += 3)
+	{
+		uint32_t in0 = indices[i] * stride;
+		uint32_t in1 = indices[i + 1] * stride;
+		uint32_t in2 = indices[i + 2] * stride;
+		glm::vec3 v1(vertices[in1] - vertices[in0], vertices[in1 + 1] - vertices[in0 + 1], vertices[in1 + 2] - vertices[in0 + 2]);
+		glm::vec3 v2(vertices[in2] - vertices[in0], vertices[in2 + 1] - vertices[in0 + 1], vertices[in2 + 2] - vertices[in0 + 2]);
+		const glm::vec3 normal = glm::normalize(glm::cross(v1, v2));
+
+		in0 += normalsOffset; in1 += normalsOffset; in2 += normalsOffset;
+		vertices[in0] += normal.x; vertices[in0 + 1] += normal.y; vertices[in0 + 2] += normal.z;
+		vertices[in1] += normal.x; vertices[in1 + 1] += normal.y; vertices[in1 + 2] += normal.z;
+		vertices[in2] += normal.x; vertices[in2 + 1] += normal.y; vertices[in2 + 2] += normal.z;
+	}
+
+	for (size_t i = 0; i < verticesCount / stride; i++)
+	{
+		const uint32_t offset = i * stride * normalsOffset;
+		// Nx - Ny - Nz
+		const glm::vec3 vec = glm::normalize(glm::vec3(vertices[offset], vertices[offset + 1], vertices[offset + 2]));
+		vertices[offset] = vec.x; vertices[offset + 1] = vec.y; vertices[offset + 2] = vec.z;
+	}
+}
 
 static Mesh CreatePyramid()
 {
-	// X-Y-Z U-V
+	// X-Y-Z	U-V		Nx-Ny-Nz
 	float vertices[] = {
-		-0.5f, -0.5f, 0.0f, 0.0f, 0.0f,
-		 0.0f, -0.5f, 0.5f, 0.5f, 0.0f,
-		 0.5f, -0.5f, 0.0f, 1.0f, 0.0f,
-		 0.0f,  0.5f, 0.0f, 0.5f, 1.0f,
+		-1.0f, -1.0f, -0.6f,	0.0f, 0.0f,		0.0f, 0.0f, 0.0f,
+		 0.0f, -1.0f,  1.0f,	0.5f, 0.0f,		0.0f, 0.0f, 0.0f,
+		 1.0f, -1.0f, -0.6f,	1.0f, 0.0f,		0.0f, 0.0f, 0.0f,
+		 0.0f,  1.0f,  0.0f,	0.5f, 1.0f,		0.0f, 0.0f, 0.0f,
 	};
 
 	uint32_t indices[] = {
-		0, 1, 3,
-		1, 2, 3,
-		0, 2, 3,
+		0, 3, 1,
+		1, 3, 2,
+		2, 3, 0,
 		0, 1, 2,
 	};
 
+	CalculateAverageNormals(vertices, std::size(vertices), 8, indices, std::size(indices), 5);
+
 	Mesh mesh;
-	mesh.CreateMesh(vertices, indices, sizeof vertices, sizeof indices);
+	mesh.CreateMesh(vertices, indices, std::size(vertices), std::size(indices));
 	return mesh;
 }
 
@@ -90,10 +117,10 @@ int main()
 {
 	WindowProps props;
 	props.Title = "OpenGLApp";
-	props.Width = 1400;
-	props.Height = 1050;
+	props.Width = 1920;
+	props.Height = 1080;
 
-	Window* window = new Window(props);
+	auto* window = new Window(props);
 
 	if (!window->Init())
 		return -1;
@@ -102,10 +129,12 @@ int main()
 	Input::SetContext(window);
 
 	std::vector<Texture2D> textures;
-	textures.emplace_back(Texture2D("textures/brick.png"));
-	textures.emplace_back(Texture2D("textures/dirt.png"));
+	textures.emplace_back("textures/brick.png");
+	textures.emplace_back("textures/dirt.png");
 
-	textures[1].Bind();
+	std::vector<Material> materials;
+	materials.emplace_back(1.0f, 32.0f);
+	materials.emplace_back(0.3f, 4.0f);
 
 	std::vector<Mesh> meshes;
 	meshes.emplace_back(CreatePyramid());
@@ -114,11 +143,29 @@ int main()
 	shader.CreateFromFile("./shaders/VertexShader.glsl", "./shaders/FragmentShader.glsl");
 	shader.Bind();
 
-	s_Camera = new Camera(glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f, 5.0f, 2.0f);
+	LightSpecification lightSpec;
+	lightSpec.Color = glm::vec3(1.0f);
+	lightSpec.AmbientIntensity = 0.5f;
+	lightSpec.Direction = glm::vec3(2.0f, -1.0f, -2.0f);
+	lightSpec.DiffuseIntensity = 0.3f;
 
-	float aspectRatio = (float)window->GetWindowWidth() / (float)window->GetWindowHeight();
-	const glm::mat4 projection = glm::perspective(45.0f, aspectRatio, 0.1f, 100.0f);
+ 	Light light(lightSpec);
+	light.UploadLight(shader);
 
+	CameraSpecification cameraSpec;
+	cameraSpec.Position = glm::vec3(0.0f);
+	cameraSpec.WorldUp = glm::vec3(0.0f, 1.0f, 0.0f);
+	cameraSpec.Yaw = -90.0f;
+	cameraSpec.Pitch = 0.0f;
+	cameraSpec.Speed = 5.0f;
+	cameraSpec.TurnSpeed = 10.0f;
+
+	Camera camera(cameraSpec);
+
+	const float aspectRatio = (float)window->GetWindowWidth() / (float)window->GetWindowHeight();
+	const glm::mat4 projection = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 100.0f);
+
+	static float lastFrameTime = 0.0f;
 	static float angle = 0.0f;
 
 	while (!window->ShouldClose())
@@ -126,26 +173,38 @@ int main()
 		OpenGLContext::Clear();
 
 		float time = window->GetCurrentTime();
-		float deltaTime = time - s_LastFrameTime;
-		s_LastFrameTime = time;
+		float deltaTime = time - lastFrameTime;
+		lastFrameTime = time;
 
-		s_Camera->OnUpdate(deltaTime);
+		camera.OnUpdate(deltaTime);
+		shader.UploadUniformFloat3("u_EyePosition", camera.GetPosition());
 
 		angle += 0.5f;
 
+		shader.UploadUniformMat4("u_View", camera.CalculateViewMatrix());
+		shader.UploadUniformMat4("u_Projection", projection);
+
 		glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -2.5f));
-		model = glm::rotate(model, glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
+			/*glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f)) *
+			glm::scale(glm::mat4(1.0f), glm::vec3(0.5f, 0.5f, 0.5f));*/
 
-		shader.UploadUniformMat4("model", model);
-		shader.UploadUniformMat4("view", s_Camera->CalculateViewMatrix());
-		shader.UploadUniformMat4("projection", projection);
+		shader.UploadUniformMat4("u_Model", model);
+		textures[0].Bind();
+		materials[0].UploadMaterial(shader);
+		meshes[0].RenderMesh();
 
+		model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 2.0f, -2.5f));
+			/*glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f)) *
+			glm::scale(glm::mat4(1.0f), glm::vec3(0.5f, 0.5f, 0.5f));*/
+
+		shader.UploadUniformMat4("u_Model", model);
+		textures[1].Bind();
+		materials[1].UploadMaterial(shader);
 		meshes[0].RenderMesh();
 
 		window->OnUpdate();
 	}
 
-	delete s_Camera;
 	delete window;
 
 	return 0;

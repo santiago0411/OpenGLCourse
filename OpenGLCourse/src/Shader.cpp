@@ -32,6 +32,18 @@ void Shader::Bind() const
 	glUseProgram(m_ShaderId);
 }
 
+void Shader::UploadUniformFloat(const std::string& name, float value) const
+{
+	auto location = glGetUniformLocation(m_ShaderId, name.c_str());
+	glUniform1f(location, value);
+}
+
+void Shader::UploadUniformFloat3(const std::string& name, const glm::vec3& vec) const
+{
+	auto location = glGetUniformLocation(m_ShaderId, name.c_str());
+	glUniform3f(location, vec.x, vec.y, vec.z);
+}
+
 void Shader::UploadUniformMat4(const std::string& name, const glm::mat4& matrix) const
 {
 	auto location = glGetUniformLocation(m_ShaderId, name.c_str());

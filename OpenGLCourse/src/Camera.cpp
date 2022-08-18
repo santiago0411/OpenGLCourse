@@ -2,9 +2,9 @@
 
 #include "Input.h"
 
-Camera::Camera(glm::vec3 position, glm::vec3 worldUp, float yaw, float pitch, float speed, float turnSpeed)
-	: m_Position(position), m_Front({0.0f, 0.0f, -1.0f}), m_Up(glm::vec3(0.0f)), m_Right(glm::vec3(0.0f)), m_WorldUp(worldUp),
-		m_Yaw(yaw), m_Pitch(pitch), m_Speed(speed), m_TurnSpeed(turnSpeed), m_LastMousePosition(glm::vec2(0.0f))
+Camera::Camera(const CameraSpecification& spec)
+	: m_Position(spec.Position), m_Front({ 0.0f, 0.0f, -1.0f }), m_Up(glm::vec3(0.0f)), m_Right(glm::vec3(0.0f)), m_WorldUp(spec.WorldUp),
+	m_Yaw(spec.Yaw), m_Pitch(spec.Pitch), m_Speed(spec.Speed), m_TurnSpeed(spec.TurnSpeed), m_LastMousePosition(glm::vec2(0.0f))
 {
 	Recalculate();
 }
@@ -24,6 +24,12 @@ void Camera::OnUpdate(float deltaTime)
 
 	if (Input::IsKeyPressed(D))
 		m_Position += m_Right * velocity;
+
+	if (Input::IsKeyPressed(Space))
+		m_Position += m_Up * velocity;
+
+	if (Input::IsKeyPressed(LeftShift))
+		m_Position += -m_Up * velocity;
 
 	const glm::vec2& mousePos = Input::GetMousePosition();
 
