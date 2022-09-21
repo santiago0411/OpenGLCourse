@@ -1,17 +1,9 @@
 #pragma once
 
-#include "Shader.h"
-
-class Material
+struct Material
 {
-public:
-	Material() = default;
-	Material(float specularIntensity, float shininess);
-	~Material() = default;
+	float SpecularIntensity = 0.0f;
+	float Shininess = 0.0f;
 
-	void UploadMaterial(const Shader& shader) const;
-
-private:
-	float m_SpecularIntensity = 0.0f;
-	float m_Shininess = 0.0f;
+	static constexpr uint8_t GPU_SIZE = 16;
 };

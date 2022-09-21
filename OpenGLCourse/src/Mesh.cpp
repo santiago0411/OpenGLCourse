@@ -2,27 +2,7 @@
 
 #include <glad/glad.h>
 
-Mesh::Mesh(Mesh&& other) noexcept
-{
-	m_VertexArrayId = other.m_VertexArrayId;
-	other.m_VertexArrayId = 0;
-
-	m_VertexBufferId = other.m_VertexBufferId;
-	other.m_VertexBufferId = 0;
-
-	m_IndexBufferId = other.m_IndexBufferId;
-	other.m_IndexBufferId = 0;
-
-	m_IndexCount = other.m_IndexCount;
-	other.m_IndexCount = 0;
-}
-
-Mesh::~Mesh()
-{
-	ClearMesh();
-}
-
-void Mesh::CreateMesh(float* vertices, uint32_t* indices, uint32_t numberOfVertices, uint32_t numberOfIndices)
+Mesh::Mesh(float* vertices, uint32_t* indices, uint32_t numberOfVertices, uint32_t numberOfIndices)
 {
 	m_IndexCount = (int32_t)numberOfIndices;
 
@@ -46,6 +26,26 @@ void Mesh::CreateMesh(float* vertices, uint32_t* indices, uint32_t numberOfVerti
 
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+}
+
+Mesh::Mesh(Mesh&& other) noexcept
+{
+	m_VertexArrayId = other.m_VertexArrayId;
+	other.m_VertexArrayId = 0;
+
+	m_VertexBufferId = other.m_VertexBufferId;
+	other.m_VertexBufferId = 0;
+
+	m_IndexBufferId = other.m_IndexBufferId;
+	other.m_IndexBufferId = 0;
+
+	m_IndexCount = other.m_IndexCount;
+	other.m_IndexCount = 0;
+}
+
+Mesh::~Mesh()
+{
+	ClearMesh();
 }
 
 void Mesh::RenderMesh() const

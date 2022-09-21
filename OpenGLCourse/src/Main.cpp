@@ -6,15 +6,31 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include "Camera.h"
+#include "Lights.h"
 #include "Input.h"
-#include "Light.h"
 #include "Material.h"
 #include "Mesh.h"
 #include "Shader.h"
 #include "Texture2D.h"
+#include "UniformBuffer.h"
 #include "Window.h"
 
 #include "OpenGLContext.h"
+
+#define DIRECTIONAL_LIGHT_BINDING 0
+#define POINT_LIGHT_ARRAY_BINDING 1
+#define MATERIAL_BINDING 2
+
+#define MAX_POINT_LIGHTS 3
+
+template<typename T, size_t Size = sizeof(T)>
+static constexpr size_t GpuSize()
+{
+	if constexpr (Size % 16 == 0)
+		return Size;
+
+	return 16 * ((size_t)(Size / 16.0f) + 1);
+}
 
 static void CalculateAverageNormals(float* vertices, uint32_t verticesCount, uint32_t stride, uint32_t* indices, uint32_t indicesCount, uint32_t normalsOffset)
 {
@@ -61,9 +77,24 @@ static Mesh CreatePyramid()
 
 	CalculateAverageNormals(vertices, std::size(vertices), 8, indices, std::size(indices), 5);
 
-	Mesh mesh;
-	mesh.CreateMesh(vertices, indices, std::size(vertices), std::size(indices));
-	return mesh;
+	return { vertices, indices, std::size(vertices), std::size(indices) };
+}
+
+static Mesh CreatePlane()
+{
+	float vertices[] = {
+		-10.0f, 0.0f, -10.0f,	 0.0f,  0.0f,	0.0f, -1.0f, 0.0f,
+		 10.0f, 0.0f, -10.0f,	10.0f,  0.0f,	0.0f, -1.0f, 0.0f,
+		-10.0f, 0.0f,  10.0f,	 0.0f, 10.0f,	0.0f, -1.0f, 0.0f,
+		 10.0f, 0.0f,  10.0f,	10.0f, 10.0f,	0.0f, -1.0f, 0.0f,
+	};
+
+	uint32_t indices[] = {
+		0, 2, 1,
+		1, 2, 3
+	};
+
+	return { vertices, indices, std::size(vertices), std::size(indices) };
 }
 
 static bool OnKeyPressed(KeyPressedEvent& e)
@@ -131,32 +162,65 @@ int main()
 	std::vector<Texture2D> textures;
 	textures.emplace_back("textures/brick.png");
 	textures.emplace_back("textures/dirt.png");
+	textures.emplace_back("textures/plain.png");
 
 	std::vector<Material> materials;
-	materials.emplace_back(1.0f, 32.0f);
+	materials.emplace_back(4.0f, 256.0f);
 	materials.emplace_back(0.3f, 4.0f);
+
+	UniformBuffer materialUB(GpuSize<Material>(), MATERIAL_BINDING);
 
 	std::vector<Mesh> meshes;
 	meshes.emplace_back(CreatePyramid());
+	meshes.emplace_back(CreatePlane());
 
 	Shader shader;
 	shader.CreateFromFile("./shaders/VertexShader.glsl", "./shaders/FragmentShader.glsl");
 	shader.Bind();
 
-	LightSpecification lightSpec;
-	lightSpec.Color = glm::vec3(1.0f);
-	lightSpec.AmbientIntensity = 0.5f;
-	lightSpec.Direction = glm::vec3(2.0f, -1.0f, -2.0f);
-	lightSpec.DiffuseIntensity = 0.3f;
+	auto* dirLight = new DirectionalLight;
+	dirLight->Color = glm::vec3(1.0f);
+	dirLight->Direction = glm::vec3(2.0f, -1.0f, -2.0f);
+	dirLight->AmbientIntensity = 0.3f;
+	dirLight->DiffuseIntensity = 0.5f;
 
- 	Light light(lightSpec);
-	light.UploadLight(shader);
+	UniformBuffer dirLightUB(GpuSize<DirectionalLight>(), DIRECTIONAL_LIGHT_BINDING);
+	dirLightUB.SetData(dirLight);
+
+	delete dirLight;
+
+	int pointLightCount = 0;
+	auto* pointLight = new PointLight[MAX_POINT_LIGHTS];
+
+	pointLight[0].Color = glm::vec3(0.0f, 0.0f, 1.0f);
+	pointLight[0].Position = glm::vec3(0.0f, 0.0f, 0.0f);
+	pointLight[0].AmbientIntensity = 0.3f;
+	pointLight[0].DiffuseIntensity = 1.0f;
+	pointLight[0].Constant = 0.3f;
+	pointLight[0].Linear = 0.2f;
+	pointLight[0].Exponent = 0.1f;
+	pointLightCount++;
+
+	pointLight[1].Color = glm::vec3(0.0f, 1.0f, 0.0f);
+	pointLight[1].Position = glm::vec3(-4.0f, 2.0f, 0.0f);
+	pointLight[1].AmbientIntensity = 0.5f;
+	pointLight[1].DiffuseIntensity = 1.0f;
+	pointLight[1].Constant = 0.3f;
+	pointLight[1].Linear = 0.2f;
+	pointLight[1].Exponent = 0.1f;
+	pointLightCount++;
+
+	UniformBuffer pointLightUB(GpuSize<PointLight>() * pointLightCount, POINT_LIGHT_ARRAY_BINDING);
+	pointLightUB.SetData(pointLight);
+	delete[] pointLight;
+
+	shader.UploadUniformInt("u_PointLightCount", pointLightCount);
 
 	CameraSpecification cameraSpec;
-	cameraSpec.Position = glm::vec3(0.0f);
+	cameraSpec.Position = glm::vec3(0.0f, 0.0f, 5.0f);
 	cameraSpec.WorldUp = glm::vec3(0.0f, 1.0f, 0.0f);
 	cameraSpec.Yaw = -90.0f;
-	cameraSpec.Pitch = 0.0f;
+	cameraSpec.Pitch = -45.0f;
 	cameraSpec.Speed = 5.0f;
 	cameraSpec.TurnSpeed = 10.0f;
 
@@ -185,22 +249,22 @@ int main()
 		shader.UploadUniformMat4("u_Projection", projection);
 
 		glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -2.5f));
-			/*glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f)) *
-			glm::scale(glm::mat4(1.0f), glm::vec3(0.5f, 0.5f, 0.5f));*/
-
 		shader.UploadUniformMat4("u_Model", model);
 		textures[0].Bind();
-		materials[0].UploadMaterial(shader);
+		materialUB.SetData(materials.data());
 		meshes[0].RenderMesh();
 
 		model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 2.0f, -2.5f));
-			/*glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f)) *
-			glm::scale(glm::mat4(1.0f), glm::vec3(0.5f, 0.5f, 0.5f));*/
-
 		shader.UploadUniformMat4("u_Model", model);
 		textures[1].Bind();
-		materials[1].UploadMaterial(shader);
+		materialUB.SetData(&materials[1]);
 		meshes[0].RenderMesh();
+
+		model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -2.0f, 0.0f));
+		shader.UploadUniformMat4("u_Model", model);
+		textures[2].Bind();
+		materialUB.SetData(materials.data());
+		meshes[1].RenderMesh();
 
 		window->OnUpdate();
 	}

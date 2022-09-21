@@ -32,6 +32,12 @@ void Shader::Bind() const
 	glUseProgram(m_ShaderId);
 }
 
+void Shader::UploadUniformInt(const std::string& name, int value) const
+{
+	auto location = glGetUniformLocation(m_ShaderId, name.c_str());
+	glUniform1i(location, value);
+}
+
 void Shader::UploadUniformFloat(const std::string& name, float value) const
 {
 	auto location = glGetUniformLocation(m_ShaderId, name.c_str());

@@ -5,12 +5,11 @@
 class Mesh
 {
 public:
-	Mesh() = default;
+	Mesh(float* vertices, uint32_t* indices, uint32_t numberOfVertices, uint32_t numberOfIndices);
 	Mesh(const Mesh& other) = default;
 	Mesh(Mesh&& other) noexcept;
 	~Mesh();
 
-	void CreateMesh(float* vertices, uint32_t* indices, uint32_t numberOfVertices, uint32_t numberOfIndices);
 	void RenderMesh() const;
 	void ClearMesh();
 
