@@ -23,15 +23,6 @@
 
 #define MAX_POINT_LIGHTS 3
 
-template<typename T, size_t Size = sizeof(T)>
-static constexpr size_t GpuSize()
-{
-	if constexpr (Size % 16 == 0)
-		return Size;
-
-	return 16 * ((size_t)(Size / 16.0f) + 1);
-}
-
 static void CalculateAverageNormals(float* vertices, uint32_t verticesCount, uint32_t stride, uint32_t* indices, uint32_t indicesCount, uint32_t normalsOffset)
 {
 	for (size_t i = 0; i < indicesCount; i += 3)
@@ -165,10 +156,10 @@ int main()
 	textures.emplace_back("textures/plain.png");
 
 	std::vector<Material> materials;
-	materials.emplace_back(4.0f, 256.0f);
+	materials.emplace_back(2.5f, 32.0f);
 	materials.emplace_back(0.3f, 4.0f);
 
-	UniformBuffer materialUB(GpuSize<Material>(), MATERIAL_BINDING);
+	UniformBuffer materialUB(sizeof(Material), MATERIAL_BINDING);
 
 	std::vector<Mesh> meshes;
 	meshes.emplace_back(CreatePyramid());
@@ -184,7 +175,7 @@ int main()
 	dirLight->AmbientIntensity = 0.3f;
 	dirLight->DiffuseIntensity = 0.5f;
 
-	UniformBuffer dirLightUB(GpuSize<DirectionalLight>(), DIRECTIONAL_LIGHT_BINDING);
+	UniformBuffer dirLightUB(sizeof(DirectionalLight), DIRECTIONAL_LIGHT_BINDING);
 	dirLightUB.SetData(dirLight);
 
 	delete dirLight;
@@ -196,21 +187,21 @@ int main()
 	pointLight[0].Position = glm::vec3(0.0f, 0.0f, 0.0f);
 	pointLight[0].AmbientIntensity = 0.3f;
 	pointLight[0].DiffuseIntensity = 1.0f;
-	pointLight[0].Constant = 0.3f;
-	pointLight[0].Linear = 0.2f;
-	pointLight[0].Exponent = 0.1f;
+	pointLight[0].Constant = 1.0f;
+	pointLight[0].Linear = 0.7f;
+	pointLight[0].Exponent = 1.8f;
 	pointLightCount++;
 
 	pointLight[1].Color = glm::vec3(0.0f, 1.0f, 0.0f);
 	pointLight[1].Position = glm::vec3(-4.0f, 2.0f, 0.0f);
 	pointLight[1].AmbientIntensity = 0.5f;
-	pointLight[1].DiffuseIntensity = 1.0f;
-	pointLight[1].Constant = 0.3f;
-	pointLight[1].Linear = 0.2f;
-	pointLight[1].Exponent = 0.1f;
+	pointLight[1].DiffuseIntensity = 0.2f;
+	pointLight[1].Constant = 1.0f;
+	pointLight[1].Linear = 0.9f;
+	pointLight[1].Exponent = 0.032f;
 	pointLightCount++;
 
-	UniformBuffer pointLightUB(GpuSize<PointLight>() * pointLightCount, POINT_LIGHT_ARRAY_BINDING);
+	UniformBuffer pointLightUB(sizeof(PointLight) * pointLightCount, POINT_LIGHT_ARRAY_BINDING);
 	pointLightUB.SetData(pointLight);
 	delete[] pointLight;
 

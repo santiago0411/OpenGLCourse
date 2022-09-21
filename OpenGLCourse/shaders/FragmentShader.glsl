@@ -9,23 +9,31 @@ layout (location = 3) in vec3 v_FragPos;
 
 const int MAX_POINT_LIGHTS = 3;
 
-layout (std140, binding = 0) uniform DirectionalLight
+struct LightBase
 {
 	vec3 Color;
 	float AmbientIntensity;
-	vec3 Direction;
 	float DiffuseIntensity;
-} u_DirectionalLight;
+};
+
+struct DirectionalLight
+{
+	LightBase Base;
+	vec3 Direction;
+};
 
 struct PointLight
 {
-	vec3 Color;
-	float AmbientIntensity;
+	LightBase Base;
 	vec3 Position;
-	float DiffuseIntensity;
 	float Constant;
 	float Linear;
 	float Exponent;
+};
+
+layout (std140, binding = 0) uniform DirectionalLightData
+{
+	DirectionalLight u_DirectionalLight;
 };
 
 layout (std140, binding = 1) uniform PointLightData
@@ -43,12 +51,12 @@ uniform sampler2D u_Textures[32];
 uniform vec3 u_EyePosition;
 uniform int u_PointLightCount;
 
-vec4 CalculateLightByDirection(vec3 color, float ai, float di, vec3 direction)
+vec4 CalculateLightByDirection(LightBase light, vec3 direction)
 {
-	vec4 ambientColor = vec4(color, 1.0f) * ai;
+	vec4 ambientColor = vec4(light.Color, 1.0f) * light.AmbientIntensity;
 
 	float diffuseFactor = max(dot(normalize(v_Normal), normalize(direction)), 0.0f);
-	vec4 diffuseColor = vec4(color * di * diffuseFactor, 1.0f);
+	vec4 diffuseColor = vec4(light.Color * light.DiffuseIntensity * diffuseFactor, 1.0f);
 
 	vec4 specularColor = vec4(0.0f);
 
@@ -61,7 +69,7 @@ vec4 CalculateLightByDirection(vec3 color, float ai, float di, vec3 direction)
 		if (specularFactor > 0.0f)
 		{
 			specularFactor = pow(specularFactor, u_Material.Shininess);
-			specularColor = vec4(color * u_Material.SpecularIntensity * specularFactor, 1.0f);
+			specularColor = vec4(light.Color * u_Material.SpecularIntensity * specularFactor, 1.0f);
 		}
 	}
 
@@ -70,8 +78,7 @@ vec4 CalculateLightByDirection(vec3 color, float ai, float di, vec3 direction)
 
 vec4 CalculateDirectionalLight()
 {
-	return CalculateLightByDirection(u_DirectionalLight.Color, u_DirectionalLight.AmbientIntensity, 
-			u_DirectionalLight.DiffuseIntensity, u_DirectionalLight.Direction);
+	return CalculateLightByDirection(u_DirectionalLight.Base, u_DirectionalLight.Direction);
 }
 
 vec4 CalculatePointLight()
@@ -84,8 +91,7 @@ vec4 CalculatePointLight()
 		float distance = length(direction);
 		direction = normalize(direction);
 
-		vec4 color = CalculateLightByDirection(u_PointLights[i].Color, u_PointLights[i].AmbientIntensity,
-				u_PointLights[i].DiffuseIntensity, direction);
+		vec4 color = CalculateLightByDirection(u_PointLights[i].Base, direction);
 
 		// Ax^2 + Bx + C
 		float attenuation = u_PointLights[i].Exponent * distance * distance +
