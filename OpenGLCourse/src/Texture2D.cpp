@@ -58,6 +58,7 @@ Texture2D::Texture2D(const std::string& path)
 	glGenerateMipmap(GL_TEXTURE_2D);
 
 	stbi_image_free(data);
+	m_Loaded = true;
 }
 
 Texture2D::~Texture2D()

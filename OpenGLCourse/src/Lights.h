@@ -24,8 +24,3 @@ struct PointLight : LightBase
 	float Exponent = 0.0f;
 	glm::vec2 PointPadding{ 0.0f };
 };
-
-struct SpotLight : LightBase
-{
-	
-};

@@ -19,6 +19,7 @@ project "OpenGLCourse"
 		"%{wks.location}/vendor/GLFW/include",
 		"%{wks.location}/vendor/Glad/include",
 		"%{wks.location}/vendor/ImGui",
+		"%{wks.location}/vendor/assimp/include",
 		"vendor/glm",
 		"vendor/stb_image"
 	}
@@ -48,11 +49,31 @@ project "OpenGLCourse"
 		runtime "Debug"
 		symbols "On"
 
+		links
+		{
+			"%{wks.location}/vendor/assimp/bin/Debug/assimp-vc142-mtd.lib"
+		}
+
+		postbuildcommands 
+		{
+			'{COPYFILE} "%{wks.location}/vendor/assimp/bin/Debug/assimp-vc142-mtd.dll" "%{cfg.targetdir}"',
+		}
+
 	filter "configurations:Release"
    		defines { "APP_RELEASE" }
 		runtime "Release"
 		optimize "On"
 		symbols "On"
+
+		links
+		{
+			"%{wks.location}/vendor/assimp/bin/Release/assimp-vc142-mt.lib"
+		}
+
+		postbuildcommands 
+		{
+			'{COPYFILE} "%{wks.location}/vendor/assimp/bin/Release/assimp-vc142-mt.dll" "%{cfg.targetdir}"',
+		}
 
 	filter "configurations:Dist"
 		kind "WindowedApp"
@@ -60,3 +81,14 @@ project "OpenGLCourse"
 		runtime "Release"
 		optimize "On"
 		symbols "Off"
+
+		links
+		{
+			"%{wks.location}/vendor/assimp/bin/Release/assimp-vc142-mt.lib"
+		}
+
+		postbuildcommands 
+		{
+			'{COPYFILE} "%{wks.location}/vendor/assimp/bin/Release/assimp-vc142-mt.dll" "%{cfg.targetdir}"',
+		}
+		

@@ -10,6 +10,7 @@
 #include "Input.h"
 #include "Material.h"
 #include "Mesh.h"
+#include "Model.h"
 #include "Shader.h"
 #include "Texture2D.h"
 #include "UniformBuffer.h"
@@ -22,6 +23,11 @@
 #define MATERIAL_BINDING 2
 
 #define MAX_POINT_LIGHTS 3
+
+constexpr float ToRadians(const float& value)
+{
+	return value * 3.14159265f / 180.0f;
+}
 
 static void CalculateAverageNormals(float* vertices, uint32_t verticesCount, uint32_t stride, uint32_t* indices, uint32_t indicesCount, uint32_t normalsOffset)
 {
@@ -151,9 +157,9 @@ int main()
 	Input::SetContext(window);
 
 	std::vector<Texture2D> textures;
-	textures.emplace_back("textures/brick.png");
-	textures.emplace_back("textures/dirt.png");
-	textures.emplace_back("textures/plain.png");
+	textures.emplace_back("./assets/textures/brick.png");
+	textures.emplace_back("./assets/textures/dirt.png");
+	textures.emplace_back("./assets/textures/plain.png");
 
 	std::vector<Material> materials;
 	materials.emplace_back(2.5f, 32.0f);
@@ -161,12 +167,15 @@ int main()
 
 	UniformBuffer materialUB(sizeof(Material), MATERIAL_BINDING);
 
+	Model xWing("./assets/models/x-wing.obj");
+	Model blackHawk("./assets/models/uh60.obj");
+
 	std::vector<Mesh> meshes;
 	meshes.emplace_back(CreatePyramid());
 	meshes.emplace_back(CreatePlane());
 
 	Shader shader;
-	shader.CreateFromFile("./shaders/VertexShader.glsl", "./shaders/FragmentShader.glsl");
+	shader.CreateFromFile("./assets/shaders/VertexShader.glsl", "./assets/shaders/FragmentShader.glsl");
 	shader.Bind();
 
 	auto* dirLight = new DirectionalLight;
@@ -256,6 +265,19 @@ int main()
 		textures[2].Bind();
 		materialUB.SetData(materials.data());
 		meshes[1].RenderMesh();
+
+		model = glm::translate(glm::mat4(1.0f), glm::vec3(-7.0f, 0.0f, 10.0f))
+			* glm::scale(glm::mat4(1.0f), glm::vec3(0.006f, 0.006f, 0.006f));
+		shader.UploadUniformMat4("u_Model", model);
+		materialUB.SetData(materials.data());
+		xWing.Render();
+
+		model = glm::translate(glm::mat4(1.0f), glm::vec3(-3.0f, 2.0f, 0.0f))
+			* glm::rotate(glm::mat4(1.0f), ToRadians(90.0f), glm::vec3(-1.0f, 0.0f, 0.0f))
+			* glm::scale(glm::mat4(1.0f), glm::vec3(0.1f, 0.1f, 0.1f));
+		shader.UploadUniformMat4("u_Model", model);
+		materialUB.SetData(materials.data());
+		blackHawk.Render();
 
 		window->OnUpdate();
 	}
