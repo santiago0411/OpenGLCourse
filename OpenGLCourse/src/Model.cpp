@@ -62,7 +62,7 @@ void Model::LoadMesh(aiMesh* mesh)
 
 	for (size_t i = 0; i < mesh->mNumFaces; i++)
 	{
-		aiFace& face = mesh->mFaces[i];
+		aiFace face = mesh->mFaces[i];
 		for (size_t j = 0; j < face.mNumIndices; j++)
 			indices.push_back(face.mIndices[j]);
 	}
@@ -74,10 +74,12 @@ void Model::LoadMesh(aiMesh* mesh)
 void Model::LoadMaterials(const aiScene* scene)
 {
 	m_Textures.resize(scene->mNumMaterials);
+
 	for (size_t i = 0; i < scene->mNumMaterials; i++)
 	{
 		aiMaterial* material = scene->mMaterials[i];
 		m_Textures[i] = nullptr;
+
 		if (material->GetTextureCount(aiTextureType_DIFFUSE))
 		{
 			aiString path;
@@ -86,6 +88,7 @@ void Model::LoadMaterials(const aiScene* scene)
 				std::string pathStr(path.data);
 				size_t idx = pathStr.rfind('\\');
 				std::string filename = pathStr.substr(idx + 1);
+
 				std::string texPath = std::string("./assets/textures/") + filename;
 				m_Textures[i] = new Texture2D(texPath);
 
@@ -93,9 +96,12 @@ void Model::LoadMaterials(const aiScene* scene)
 				{
 					printf("Texture '%s' for model was not found.", texPath.c_str());
 					delete m_Textures[i];
-					m_Textures[i] = new Texture2D("./assets/textures/plain.png");
+					m_Textures[i] = nullptr;
 				}
 			}
 		}
+
+		if (!m_Textures[i])
+			m_Textures[i] = new Texture2D("./assets/textures/plain.png");
 	}
 }

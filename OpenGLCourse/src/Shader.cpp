@@ -9,10 +9,13 @@
 static void DetachAndDeleteShaders(uint32_t programId, uint32_t vertexId, uint32_t fragId)
 {
 	glDetachShader(programId, vertexId);
-	glDetachShader(programId, fragId);
-
 	glDeleteShader(vertexId);
-	glDeleteShader(fragId);
+
+	if (fragId)
+	{
+		glDetachShader(programId, fragId);
+		glDeleteShader(fragId);
+	}
 }
 
 void Shader::CreateFromString(const std::string& vertexString, const std::string& fragmentString)
@@ -20,11 +23,22 @@ void Shader::CreateFromString(const std::string& vertexString, const std::string
 	CompileShader(vertexString, fragmentString);
 }
 
+void Shader::CreateFromString(const std::string& vertexString)
+{
+	CompileShader(vertexString, "");
+}
+
 void Shader::CreateFromFile(const std::filesystem::path& vertexPath, const std::filesystem::path& fragmentPath)
 {
 	const std::string vertexSource(Utils::ReadFileToString(vertexPath));
 	const std::string fragmentSource(Utils::ReadFileToString(fragmentPath));
 	CompileShader(vertexSource, fragmentSource);
+}
+
+void Shader::CreateFromFile(const std::filesystem::path& vertexPath)
+{
+	const std::string vertexSource(Utils::ReadFileToString(vertexPath));
+	CompileShader(vertexSource, "");
 }
 
 void Shader::Bind() const
@@ -83,7 +97,7 @@ void Shader::CompileShader(const std::string& vertexString, const std::string& f
 {
 	const uint32_t program = glCreateProgram();
 	const uint32_t vertexId = AddShader(program, vertexString, GL_VERTEX_SHADER);
-	const uint32_t fragId = AddShader(program, fragmentString, GL_FRAGMENT_SHADER);
+	const uint32_t fragId = fragmentString.empty() ? 0 : AddShader(program, fragmentString, GL_FRAGMENT_SHADER);
 
 	int32_t result;
 

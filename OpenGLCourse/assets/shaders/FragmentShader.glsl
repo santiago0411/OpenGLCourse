@@ -6,6 +6,7 @@ layout (location = 0) in vec4 v_Color;
 layout (location = 1) in vec2 v_TexCoords;
 layout (location = 2) in vec3 v_Normal;
 layout (location = 3) in vec3 v_FragPos;
+layout (location = 4) in vec4 v_DirectionalLightSpacePos;
 
 const int MAX_POINT_LIGHTS = 3;
 
@@ -47,11 +48,41 @@ layout (std140, binding = 2) uniform Material
 	float Shininess;
 } u_Material;
 
-uniform sampler2D u_Textures[32];
+uniform sampler2D u_Texture;
+uniform sampler2D u_DirectionalShadowMap;
 uniform vec3 u_EyePosition;
 uniform int u_PointLightCount;
 
-vec4 CalculateLightByDirection(LightBase light, vec3 direction)
+float CalculateDirectionalShadowFactor(DirectionalLight light)
+{
+	vec3 projCoords = v_DirectionalLightSpacePos.xyz / v_DirectionalLightSpacePos.w;
+	projCoords = (projCoords * 0.5f) + 0.5f;
+
+	if (projCoords.z > 1.0f)
+		return 0.0f;
+
+	float current = projCoords.z;
+
+	vec3 normal = normalize(v_Normal);
+	vec3 lightDir = normalize(light.Direction);
+	float bias = max(0.05f * (1 - dot(normal, lightDir)), 0.0005f);
+
+	float shadow = 0.0f;
+	vec2 texelSize = 1.0f / textureSize(u_DirectionalShadowMap, 0);
+	for (int x = -1; x <= 1; x++)
+	{
+		for (int y = -1; y <= 1; y++)
+		{
+			float pcfDepth = texture(u_DirectionalShadowMap, projCoords.xy + vec2(x,y) * texelSize).r;
+			shadow += current - bias > pcfDepth ? 1.0f : 0.0f;
+		}
+	}
+
+	shadow /= 9.0f;
+	return shadow;
+}
+
+vec4 CalculateLightByDirection(LightBase light, vec3 direction, float shadowFactor)
 {
 	vec4 ambientColor = vec4(light.Color, 1.0f) * light.AmbientIntensity;
 
@@ -73,12 +104,13 @@ vec4 CalculateLightByDirection(LightBase light, vec3 direction)
 		}
 	}
 
-	return ambientColor + diffuseColor + specularColor;
+	return (ambientColor + (1.0f - shadowFactor) * (diffuseColor + specularColor));
 }
 
 vec4 CalculateDirectionalLight()
 {
-	return CalculateLightByDirection(u_DirectionalLight.Base, u_DirectionalLight.Direction);
+	float shadowFactor = CalculateDirectionalShadowFactor(u_DirectionalLight);
+	return CalculateLightByDirection(u_DirectionalLight.Base, u_DirectionalLight.Direction, shadowFactor);
 }
 
 vec4 CalculatePointLight()
@@ -91,7 +123,7 @@ vec4 CalculatePointLight()
 		float distance = length(direction);
 		direction = normalize(direction);
 
-		vec4 color = CalculateLightByDirection(u_PointLights[i].Base, direction);
+		vec4 color = CalculateLightByDirection(u_PointLights[i].Base, direction, 0.0f);
 
 		// Ax^2 + Bx + C
 		float attenuation = u_PointLights[i].Exponent * distance * distance +
@@ -108,5 +140,5 @@ void main()
 {
 	vec4 finalColor = CalculateDirectionalLight();
 	finalColor += CalculatePointLight();
-	o_Color = texture(u_Textures[0], v_TexCoords) * finalColor;
+	o_Color = texture(u_Texture, v_TexCoords) * finalColor;
 }

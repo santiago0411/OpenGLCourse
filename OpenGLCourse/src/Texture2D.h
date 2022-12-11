@@ -9,7 +9,7 @@ public:
 	Texture2D(const std::string& path);
 	~Texture2D();
 
-	void Bind(uint32_t slot = 0) const;
+	void Bind() const;
 
 	bool IsLoaded() const { return m_Loaded; }
 

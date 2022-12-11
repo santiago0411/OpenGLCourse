@@ -47,12 +47,10 @@ bool OpenGLContext::Init(GLFWwindow* window)
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-#if defined(APP_DEBUG)
 	glEnable(GL_DEBUG_OUTPUT);
 	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
 	glDebugMessageCallback(OpenGLMessageCallback, nullptr);
 	glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_NOTIFICATION, 0, nullptr, GL_FALSE);
-#endif
 
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_LINE_SMOOTH);
@@ -69,4 +67,14 @@ void OpenGLContext::SetClearColor(const glm::vec4& color)
 void OpenGLContext::Clear()
 {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
+
+void OpenGLContext::ClearDepthOnly()
+{
+	glClear(GL_DEPTH_BUFFER_BIT);
+}
+
+void OpenGLContext::SetViewport(uint32_t width, uint32_t height)
+{
+	glViewport(0, 0, (int)width, (int)height);
 }

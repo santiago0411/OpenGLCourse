@@ -48,7 +48,7 @@ bool Window::Init()
 	}
 
 	glfwSwapInterval(1);
-	SetEvents();
+	// SetEvents();
 
 	return true;
 }

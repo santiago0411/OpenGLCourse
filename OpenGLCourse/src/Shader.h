@@ -12,10 +12,11 @@ public:
 	~Shader() = default;
 
 	void CreateFromString(const std::string& vertexString, const std::string& fragmentString);
+	void CreateFromString(const std::string& vertexString);
 	void CreateFromFile(const std::filesystem::path& vertexPath, const std::filesystem::path& fragmentPath);
+	void CreateFromFile(const std::filesystem::path& vertexPath);
 
 	void Bind() const;
-
 
 	void UploadUniformInt(const std::string& name, int value) const;
 	void UploadUniformFloat(const std::string& name, float value) const;

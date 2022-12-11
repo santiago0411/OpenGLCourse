@@ -19,7 +19,7 @@ Texture2D::Texture2D(Texture2D&& other) noexcept
 
 Texture2D::Texture2D(const std::string& path)
 {
-	stbi_set_flip_vertically_on_load(true);
+	// stbi_set_flip_vertically_on_load(true);
 	stbi_uc* data = stbi_load(path.c_str(), &m_Width, &m_Height, &m_Channels, 0);
 
 	if (!data)
@@ -66,7 +66,8 @@ Texture2D::~Texture2D()
 	glDeleteTextures(1, &m_TextureId);
 }
 
-void Texture2D::Bind(uint32_t slot) const
+void Texture2D::Bind() const
 {
-	glBindTextureUnit(slot, m_TextureId);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, m_TextureId);
 }
