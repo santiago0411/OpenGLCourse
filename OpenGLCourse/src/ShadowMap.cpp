@@ -49,8 +49,8 @@ void ShadowMap::EndWrite() const
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void ShadowMap::Read() const
+void ShadowMap::Read(uint32_t offset) const
 {
-	glActiveTexture(GL_TEXTURE1);
+	glActiveTexture(GL_TEXTURE0 + offset);
 	glBindTexture(GL_TEXTURE_2D, m_ShadowMapId);
 }

@@ -9,6 +9,7 @@ layout (location = 3) in vec3 v_FragPos;
 layout (location = 4) in vec4 v_DirectionalLightSpacePos;
 
 const int MAX_POINT_LIGHTS = 3;
+const int MAX_SPOT_LIGHTS = 3;
 
 struct LightBase
 {
@@ -32,6 +33,19 @@ struct PointLight
 	float Exponent;
 };
 
+struct SpotLight
+{
+	PointLight Base;
+	vec3 Direction;
+	float Edge;
+};
+
+struct OmniShadowMap
+{
+	samplerCube ShadowMap;
+	float FarPlane;
+};
+
 layout (std140, binding = 0) uniform DirectionalLightData
 {
 	DirectionalLight u_DirectionalLight;
@@ -42,7 +56,12 @@ layout (std140, binding = 1) uniform PointLightData
 	PointLight u_PointLights[MAX_POINT_LIGHTS];
 };
 
-layout (std140, binding = 2) uniform Material
+layout (std140, binding = 2) uniform SpotLightData
+{
+	SpotLight u_SpotLights[MAX_SPOT_LIGHTS];
+};
+
+layout (std140, binding = 3) uniform Material
 {
 	float SpecularIntensity;
 	float Shininess;
@@ -50,8 +69,20 @@ layout (std140, binding = 2) uniform Material
 
 uniform sampler2D u_Texture;
 uniform sampler2D u_DirectionalShadowMap;
+uniform OmniShadowMap u_OmniShadowMaps[MAX_POINT_LIGHTS + MAX_SPOT_LIGHTS];
+
 uniform vec3 u_EyePosition;
 uniform int u_PointLightCount;
+uniform int u_SpotLightCount;
+
+vec3 gridSamplingDisk[20] = vec3[]
+(
+   vec3(1, 1,  1), vec3( 1, -1,  1), vec3(-1, -1,  1), vec3(-1, 1,  1), 
+   vec3(1, 1, -1), vec3( 1, -1, -1), vec3(-1, -1, -1), vec3(-1, 1, -1),
+   vec3(1, 1,  0), vec3( 1, -1,  0), vec3(-1, -1,  0), vec3(-1, 1,  0),
+   vec3(1, 0,  1), vec3(-1,  0,  1), vec3( 1,  0, -1), vec3(-1, 0, -1),
+   vec3(0, 1,  1), vec3( 0, -1,  1), vec3( 0, -1, -1), vec3( 0, 1, -1)
+);
 
 float CalculateDirectionalShadowFactor(DirectionalLight light)
 {
@@ -61,7 +92,7 @@ float CalculateDirectionalShadowFactor(DirectionalLight light)
 	if (projCoords.z > 1.0f)
 		return 0.0f;
 
-	float current = projCoords.z;
+	float currentDepth = projCoords.z;
 
 	vec3 normal = normalize(v_Normal);
 	vec3 lightDir = normalize(light.Direction);
@@ -74,11 +105,35 @@ float CalculateDirectionalShadowFactor(DirectionalLight light)
 		for (int y = -1; y <= 1; y++)
 		{
 			float pcfDepth = texture(u_DirectionalShadowMap, projCoords.xy + vec2(x,y) * texelSize).r;
-			shadow += current - bias > pcfDepth ? 1.0f : 0.0f;
+			shadow += currentDepth - bias > pcfDepth ? 1.0f : 0.0f;
 		}
 	}
 
 	shadow /= 9.0f;
+	return shadow;
+}
+
+float CaculateOmniShadowFactor(PointLight light, int shadowIndex)
+{
+	vec3 fragToLight = v_FragPos - light.Position;
+	float currentDepth = length(fragToLight);
+
+	float shadow = 0.0f;
+	float bias = 0.05f;
+	int samples = 20;
+
+	float viewDistance = length(u_EyePosition - v_FragPos);
+	float diskRadius = (1.0f + (viewDistance / u_OmniShadowMaps[shadowIndex].FarPlane)) / 25.0f;
+
+	for (int i = 0; i < samples; i++)
+	{
+		float closestDepth = texture(u_OmniShadowMaps[shadowIndex].ShadowMap, fragToLight + gridSamplingDisk[i] * diskRadius).r;
+		closestDepth *= u_OmniShadowMaps[shadowIndex].FarPlane;
+		if (currentDepth - bias > closestDepth)
+			shadow += 1.0f;
+	}
+
+	shadow /= float(samples);
 	return shadow;
 }
 
@@ -113,25 +168,51 @@ vec4 CalculateDirectionalLight()
 	return CalculateLightByDirection(u_DirectionalLight.Base, u_DirectionalLight.Direction, shadowFactor);
 }
 
-vec4 CalculatePointLight()
+vec4 CalculatePointLight(PointLight light, int shadowIndex)
+{
+	vec3 direction = v_FragPos - light.Position;
+	float distance = length(direction);
+	direction = normalize(direction);
+
+	float shadowFactor = CaculateOmniShadowFactor(light, shadowIndex);
+	vec4 color = CalculateLightByDirection(light.Base, direction, shadowFactor);
+
+	// Ax^2 + Bx + C
+	float attenuation = light.Exponent * distance * distance +
+						light.Linear * distance +
+						light.Constant;
+
+	return color / attenuation;
+}
+
+vec4 CalculateSpotLight(SpotLight light, int shadowIndex)
+{
+	vec3 rayDirection = normalize(v_FragPos - light.Base.Position);
+	float slFactor = dot(rayDirection, light.Direction);
+
+	if (slFactor > light.Edge)
+	{
+		vec4 color = CalculatePointLight(light.Base, shadowIndex);
+		return color * (1.0f - (1.0f - slFactor) * (1.0f / (1.0f - light.Edge)));
+	}
+
+	return vec4(0);
+}
+
+vec4 CalculatePointLights()
 {
 	vec4 totalColor = vec4(0);
-
 	for (int i = 0; i < u_PointLightCount; i++)
-	{
-		vec3 direction = v_FragPos - u_PointLights[i].Position;
-		float distance = length(direction);
-		direction = normalize(direction);
+		totalColor += CalculatePointLight(u_PointLights[i], i);
 
-		vec4 color = CalculateLightByDirection(u_PointLights[i].Base, direction, 0.0f);
+	return totalColor;
+}
 
-		// Ax^2 + Bx + C
-		float attenuation = u_PointLights[i].Exponent * distance * distance +
-							u_PointLights[i].Linear * distance +
-							u_PointLights[i].Constant;
-
-		totalColor += (color / attenuation);
-	}
+vec4 CalculateSpotLights()
+{
+	vec4 totalColor = vec4(0);
+	for (int i = 0; i < u_SpotLightCount; i++)
+		totalColor += CalculateSpotLight(u_SpotLights[i], i + u_PointLightCount);
 
 	return totalColor;
 }
@@ -139,6 +220,7 @@ vec4 CalculatePointLight()
 void main()
 {
 	vec4 finalColor = CalculateDirectionalLight();
-	finalColor += CalculatePointLight();
+	finalColor += CalculatePointLights();
+	finalColor += CalculateSpotLights();
 	o_Color = texture(u_Texture, v_TexCoords) * finalColor;
 }

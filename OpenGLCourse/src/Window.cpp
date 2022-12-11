@@ -40,6 +40,7 @@ bool Window::Init()
 #endif
 
 	CreateGlfwWindow();
+	glfwSetInputMode(m_Window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	if (!OpenGLContext::Init(m_Window))
 	{
@@ -62,6 +63,11 @@ void Window::OnUpdate() const
 {
 	glfwPollEvents();
 	glfwSwapBuffers(m_Window);
+}
+
+void Window::Close()
+{
+	glfwSetWindowShouldClose(m_Window, true);
 }
 
 float Window::GetCurrentTime() const

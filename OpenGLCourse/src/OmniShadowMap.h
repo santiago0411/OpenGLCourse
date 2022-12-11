@@ -1,11 +1,13 @@
 #pragma once
+
 #include <cstdint>
 
-class ShadowMap
+class OmniShadowMap
 {
 public:
-	ShadowMap(uint32_t width, uint32_t height);
-	virtual ~ShadowMap();
+	OmniShadowMap(uint32_t width, uint32_t height);
+	OmniShadowMap(OmniShadowMap&& other);
+	~OmniShadowMap();
 
 	void BeginWrite() const;
 	void EndWrite() const;

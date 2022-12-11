@@ -1,5 +1,6 @@
 #include "UniformBuffer.h"
 
+#include <cstdio>
 #include <glad/glad.h>
 
 UniformBuffer::UniformBuffer(size_t size, uint32_t binding)

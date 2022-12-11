@@ -68,6 +68,6 @@ Texture2D::~Texture2D()
 
 void Texture2D::Bind() const
 {
-	glActiveTexture(GL_TEXTURE0);
+	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, m_TextureId);
 }

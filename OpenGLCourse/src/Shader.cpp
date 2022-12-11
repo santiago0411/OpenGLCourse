@@ -6,10 +6,16 @@
 
 #include "Utils.h"
 
-static void DetachAndDeleteShaders(uint32_t programId, uint32_t vertexId, uint32_t fragId)
+static void DetachAndDeleteShaders(uint32_t programId, uint32_t vertexId, uint32_t geomId, uint32_t fragId)
 {
 	glDetachShader(programId, vertexId);
 	glDeleteShader(vertexId);
+
+	if (geomId)
+	{
+		glDetachShader(programId, geomId);
+		glDeleteShader(geomId);
+	}
 
 	if (fragId)
 	{
@@ -18,32 +24,70 @@ static void DetachAndDeleteShaders(uint32_t programId, uint32_t vertexId, uint32
 	}
 }
 
-void Shader::CreateFromString(const std::string& vertexString, const std::string& fragmentString)
+static const char* ShaderStageToString(GLenum stage)
 {
-	CompileShader(vertexString, fragmentString);
+	switch (stage)
+	{
+		case GL_VERTEX_SHADER:
+			return "vertex";
+		case GL_GEOMETRY_SHADER:
+			return "geometry";
+		case GL_FRAGMENT_SHADER:
+			return "fragment";
+		default:
+			return "Unknown";
+	}
 }
 
 void Shader::CreateFromString(const std::string& vertexString)
 {
-	CompileShader(vertexString, "");
+	CompileShader(vertexString, "", "");
+}
+
+void Shader::CreateFromString(const std::string& vertexString, const std::string& fragmentString)
+{
+	CompileShader(vertexString, fragmentString, "");
+}
+
+void Shader::CreateFromString(const std::string& vertexString, const std::string& geometryString, const std::string& fragmentString)
+{
+	CompileShader(vertexString, geometryString, fragmentString);
+}
+
+void Shader::CreateFromFile(const std::filesystem::path& vertexPath)
+{
+	const std::string vertexSource(Utils::ReadFileToString(vertexPath));
+	CompileShader(vertexSource, "", "");
 }
 
 void Shader::CreateFromFile(const std::filesystem::path& vertexPath, const std::filesystem::path& fragmentPath)
 {
 	const std::string vertexSource(Utils::ReadFileToString(vertexPath));
 	const std::string fragmentSource(Utils::ReadFileToString(fragmentPath));
-	CompileShader(vertexSource, fragmentSource);
+	CompileShader(vertexSource, "", fragmentSource);
 }
 
-void Shader::CreateFromFile(const std::filesystem::path& vertexPath)
+void Shader::CreateFromFile(const std::filesystem::path& vertexPath, const std::filesystem::path& geometryPath, const std::filesystem::path& fragmentPath)
 {
 	const std::string vertexSource(Utils::ReadFileToString(vertexPath));
-	CompileShader(vertexSource, "");
+	const std::string geometrySource(Utils::ReadFileToString(geometryPath));
+	const std::string fragmentSource(Utils::ReadFileToString(fragmentPath));
+	CompileShader(vertexSource, geometrySource, fragmentSource);
 }
 
 void Shader::Bind() const
 {
 	glUseProgram(m_ShaderId);
+}
+
+void Shader::Validate() const
+{
+	int32_t result;
+	glValidateProgram(m_ShaderId);
+	glGetProgramiv(m_ShaderId, GL_VALIDATE_STATUS, &result);
+
+	if (!result)
+		std::cerr << "Error validating shader program.\n";
 }
 
 void Shader::UploadUniformInt(const std::string& name, int value) const
@@ -84,7 +128,7 @@ uint32_t Shader::AddShader(uint32_t program, const std::string& shaderCode, uint
 	{
 		char log[512] = { 0 };
 		glGetShaderInfoLog(shader, sizeof log, nullptr, log);
-		std::cerr << "Error compiling " << (shaderType == GL_VERTEX_SHADER ? "vertex" : "fragment") << " shader:\n\t" << log;
+		std::cerr << "Error compiling " << ShaderStageToString(shaderType) << " shader:\n\t" << log;
 		glDeleteShader(shader);
 		return 0;
 	}
@@ -93,10 +137,11 @@ uint32_t Shader::AddShader(uint32_t program, const std::string& shaderCode, uint
 	return shader;
 }
 
-void Shader::CompileShader(const std::string& vertexString, const std::string& fragmentString)
+void Shader::CompileShader(const std::string& vertexString, const std::string& geometryString, const std::string& fragmentString)
 {
 	const uint32_t program = glCreateProgram();
 	const uint32_t vertexId = AddShader(program, vertexString, GL_VERTEX_SHADER);
+	const uint32_t geomId = geometryString.empty() ? 0 : AddShader(program, geometryString, GL_GEOMETRY_SHADER);
 	const uint32_t fragId = fragmentString.empty() ? 0 : AddShader(program, fragmentString, GL_FRAGMENT_SHADER);
 
 	int32_t result;
@@ -107,23 +152,11 @@ void Shader::CompileShader(const std::string& vertexString, const std::string& f
 	if (!result)
 	{
 		std::cerr << "Error linking shader program.\n";
-		DetachAndDeleteShaders(program, vertexId, fragId);
-		glDeleteProgram(program);
-		return;
-	}
-
-	glValidateProgram(program);
-	glGetProgramiv(program, GL_VALIDATE_STATUS, &result);
-
-	if (!result)
-	{
-		std::cerr << "Error validating shader program.\n";
-		DetachAndDeleteShaders(program, vertexId, fragId);
+		DetachAndDeleteShaders(program, vertexId, geomId, fragId);
 		glDeleteProgram(program);
 		return;
 	}
 
 	m_ShaderId = program;
-
-	DetachAndDeleteShaders(program, vertexId, fragId);
+	DetachAndDeleteShaders(program, vertexId, geomId, fragId);
 }

@@ -3,7 +3,6 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
 
 #include "Camera.h"
 #include "Lights.h"
@@ -11,6 +10,7 @@
 #include "Material.h"
 #include "Mesh.h"
 #include "Model.h"
+#include "OmniShadowMap.h"
 #include "Shader.h"
 #include "ShadowMap.h"
 #include "Texture2D.h"
@@ -22,11 +22,16 @@
 #define WINDOW_WIDTH 1920
 #define WINDOW_HEIGHT 1080
 
+#define LIGHT_MATRICES_BINDING 0
+
 #define DIRECTIONAL_LIGHT_BINDING 0
 #define POINT_LIGHT_ARRAY_BINDING 1
-#define MATERIAL_BINDING 2
+#define SPOT_LIGHT_ARRAY_BINDING 2
+#define MATERIAL_BINDING 3
 
 #define MAX_POINT_LIGHTS 3
+
+Window* g_Window;
 
 std::vector<Texture2D> g_Textures;
 std::vector<Material> g_Materials;
@@ -41,11 +46,19 @@ std::vector<Mesh> g_Meshes;
 
 Shader g_Shader;
 Shader g_DirectionalShadowShader;
+Shader g_OmniDirectionalShadowShader;
 
-UniformBuffer g_MaterialUB;
+UniformBuffer* g_MaterialUB;
+UniformBuffer* g_SpotLightUB;
 
 Model* g_xWingModel;
 Model* g_BlackHawkModel;
+
+std::vector<PointLight> g_PointLights;
+std::vector<OmniShadowMap> g_PointLightOmniShadowMaps;
+
+std::vector<SpotLight> g_SpotLights;
+std::vector<OmniShadowMap> g_SpotLightOmniShadowMaps;
 
 constexpr float ToRadians(const float& value)
 {
@@ -122,25 +135,25 @@ static void RenderScene(const Shader& shader)
 	glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -2.5f));
 	shader.UploadUniformMat4("u_Model", model);
 	g_Textures[BRICK_TEXTURE].Bind();
-	g_MaterialUB.SetData(&g_Materials[SHINY_MATERIAL]);
+	g_MaterialUB->SetData(&g_Materials[SHINY_MATERIAL]);
 	g_Meshes[0].RenderMesh();
 
 	model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 4.0f, -2.5f));
 	shader.UploadUniformMat4("u_Model", model);
 	g_Textures[DIRT_TEXTURE].Bind();
-	g_MaterialUB.SetData(&g_Materials[DULL_MATERIAL]);
+	g_MaterialUB->SetData(&g_Materials[DULL_MATERIAL]);
 	g_Meshes[0].RenderMesh();
 
 	model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -2.0f, 0.0f));
 	shader.UploadUniformMat4("u_Model", model);
 	g_Textures[DIRT_TEXTURE].Bind();
-	g_MaterialUB.SetData(&g_Materials[SHINY_MATERIAL]);
+	g_MaterialUB->SetData(&g_Materials[SHINY_MATERIAL]);
 	g_Meshes[1].RenderMesh();
 
 	model = glm::translate(glm::mat4(1.0f), glm::vec3(-7.0f, 0.0f, 10.0f))
 		* glm::scale(glm::mat4(1.0f), glm::vec3(0.006f, 0.006f, 0.006f));
 	shader.UploadUniformMat4("u_Model", model);
-	g_MaterialUB.SetData(&g_Materials[SHINY_MATERIAL]);
+	g_MaterialUB->SetData(&g_Materials[SHINY_MATERIAL]);
 	g_xWingModel->Render();
 
 	static float blackHawkAngle = 0.0f;
@@ -154,7 +167,7 @@ static void RenderScene(const Shader& shader)
 		* glm::rotate(glm::mat4(1.0f), -ToRadians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f))
 		* glm::scale(glm::mat4(1.0f), glm::vec3(0.1f, 0.1f, 0.1f));
 	shader.UploadUniformMat4("u_Model", model);
-	g_MaterialUB.SetData(&g_Materials[SHINY_MATERIAL]);
+	g_MaterialUB->SetData(&g_Materials[SHINY_MATERIAL]);
 	g_BlackHawkModel->Render();
 }
 
@@ -166,7 +179,34 @@ static void DirectionalShadowMapPass(const ShadowMap& shadowMap)
 	OpenGLContext::ClearDepthOnly();
 
 	g_DirectionalShadowShader.Bind();
+	g_DirectionalShadowShader.Validate();
 	RenderScene(g_DirectionalShadowShader);
+	shadowMap.EndWrite();
+}
+
+static void OmniShadowMapPass(const PointLight& light, const OmniShadowMap& shadowMap)
+{
+	OpenGLContext::SetViewport(shadowMap.GetWidth(), shadowMap.GetHeight());
+
+	shadowMap.BeginWrite();
+	OpenGLContext::ClearDepthOnly();
+
+	g_OmniDirectionalShadowShader.Bind();
+	g_OmniDirectionalShadowShader.UploadUniformFloat3("u_LightPos", light.Position);
+	g_OmniDirectionalShadowShader.UploadUniformFloat("u_FarPlane", 100.0f);
+
+	static glm::mat4 lightProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.01f, 100.0f);
+	std::vector<glm::mat4> lightMatrices = CalculateLightTransform(light, lightProjection);
+
+	g_OmniDirectionalShadowShader.UploadUniformMat4("u_LightMatrices[0]", lightMatrices[0]);
+	g_OmniDirectionalShadowShader.UploadUniformMat4("u_LightMatrices[1]", lightMatrices[1]);
+	g_OmniDirectionalShadowShader.UploadUniformMat4("u_LightMatrices[2]", lightMatrices[2]);
+	g_OmniDirectionalShadowShader.UploadUniformMat4("u_LightMatrices[3]", lightMatrices[3]);
+	g_OmniDirectionalShadowShader.UploadUniformMat4("u_LightMatrices[4]", lightMatrices[4]);
+	g_OmniDirectionalShadowShader.UploadUniformMat4("u_LightMatrices[5]", lightMatrices[5]);
+
+	g_OmniDirectionalShadowShader.Validate();
+	RenderScene(g_OmniDirectionalShadowShader);
 	shadowMap.EndWrite();
 }
 
@@ -179,10 +219,37 @@ static void RenderPass(const Camera& camera, const ShadowMap& shadowMap)
 	g_Shader.UploadUniformFloat3("u_EyePosition", camera.GetPosition());
 	g_Shader.UploadUniformMat4("u_View", camera.CalculateViewMatrix());
 
-	shadowMap.Read();
-	g_Shader.UploadUniformInt("u_Texture", 0);
-	g_Shader.UploadUniformInt("u_DirectionalShadowMap", 1);
+	shadowMap.Read(2);
+	g_Shader.UploadUniformInt("u_Texture", 1);
+	g_Shader.UploadUniformInt("u_DirectionalShadowMap", 2);
 
+	for (size_t i = 0; i < g_PointLights.size(); i++)
+	{
+		const int textureUnit = 3;
+		g_PointLightOmniShadowMaps[i].Read(textureUnit + i);
+		std::string uniformName = std::format("u_OmniShadowMaps[{}]", i);
+		g_Shader.UploadUniformInt(uniformName + std::string(".ShadowMap"), textureUnit + i);
+		g_Shader.UploadUniformFloat(uniformName + std::string(".FarPlane"), 100.0f);
+	}
+
+	for (size_t i = 0; i < g_SpotLights.size(); i++)
+	{
+		const int textureUnit = 3 + g_PointLights.size();
+		g_SpotLightOmniShadowMaps[i].Read(textureUnit + i);
+		std::string uniformName = std::format("u_OmniShadowMaps[{}]", i + g_PointLights.size());
+		g_Shader.UploadUniformInt(uniformName + std::string(".ShadowMap"), textureUnit + i);
+		g_Shader.UploadUniformFloat(uniformName + std::string(".FarPlane"), 100.0f);
+	}
+
+	if (!g_SpotLights.empty())
+	{
+		glm::vec3 lowerLight = camera.GetPosition();
+		lowerLight.y -= 0.3f;
+		g_SpotLights[0].Position = lowerLight;
+		g_SpotLights[0].Direction = camera.GetDirection();
+		g_SpotLightUB->SetData(g_SpotLights.data());
+	}
+	g_Shader.Validate();
 	RenderScene(g_Shader);
 }
 
@@ -193,12 +260,12 @@ int main()
 	props.Width = WINDOW_WIDTH;
 	props.Height = WINDOW_HEIGHT;
 
-	auto* window = new Window(props);
+	g_Window = new Window(props);
 
-	if (!window->Init())
+	if (!g_Window->Init())
 		return -1;
 
-	Input::SetContext(window);
+	Input::SetContext(g_Window);
 
 	g_Textures.emplace_back("./assets/textures/brick.png");
 	g_Textures.emplace_back("./assets/textures/dirt.png");
@@ -207,7 +274,7 @@ int main()
 	g_Materials.emplace_back(4.0f, 256.0f);
 	g_Materials.emplace_back(0.3f, 4.0f);
 
-	g_MaterialUB = UniformBuffer(sizeof(Material), MATERIAL_BINDING);
+	g_MaterialUB = new UniformBuffer(sizeof(Material), MATERIAL_BINDING);
 
 	g_xWingModel = new Model("./assets/models/x-wing.obj");
 	g_BlackHawkModel = new Model("./assets/models/uh60.obj");
@@ -219,57 +286,96 @@ int main()
 	g_Shader.Bind();
 
 	g_DirectionalShadowShader.CreateFromFile("./assets/shaders/DirectionalShadowMap.vert");
-
-	ShadowMap shadowMap(2048, 2048);
+	g_OmniDirectionalShadowShader.CreateFromFile("./assets/shaders/OmniShadowMap.vert", "./assets/shaders/OmniShadowMap.geom", "./assets/shaders/OmniShadowMap.frag");
 
 	DirectionalLight dirLight;
 	dirLight.Color = glm::vec3(1.0f);
 	dirLight.Direction = glm::vec3(0.0f, -15.0f, -10.0f);
-	dirLight.AmbientIntensity = 0.1f;
-	dirLight.DiffuseIntensity = 0.6f;
+	dirLight.AmbientIntensity = 0.0f;
+	dirLight.DiffuseIntensity = 0.1f;
+	ShadowMap shadowMap(2048, 2048);
 
 	UniformBuffer dirLightUB(sizeof(DirectionalLight), DIRECTIONAL_LIGHT_BINDING);
 	dirLightUB.SetData(&dirLight);
 
-	int pointLightCount = 0;
-	auto* pointLight = new PointLight[MAX_POINT_LIGHTS];
+	PointLight& pointLight1 = g_PointLights.emplace_back();
+	pointLight1.Color = glm::vec3(0.0f, 1.0f, 0.0f);
+	pointLight1.Position = glm::vec3(-2.0f, 2.0f, 0.0f);
+	pointLight1.AmbientIntensity = 0.0f;
+	pointLight1.DiffuseIntensity = 0.4f;
+	pointLight1.Constant = 0.3f;
+	pointLight1.Linear = 0.01f;
+	pointLight1.Exponent = 0.01f;
+	g_PointLightOmniShadowMaps.emplace_back(1024, 1024);
 
-	pointLight[0].Color = glm::vec3(0.0f, 0.0f, 1.0f);
-	pointLight[0].Position = glm::vec3(0.0f);
-	pointLight[0].AmbientIntensity = 0.1f;
-	pointLight[0].DiffuseIntensity = 0.3f;
-	pointLight[0].Constant = 0.3f;
-	pointLight[0].Linear = 0.2f;
-	pointLight[0].Exponent = 0.1f;
-	pointLightCount++;
+	PointLight& pointLight2 = g_PointLights.emplace_back();
+	pointLight2.Color = glm::vec3(0.0f, 0.0f, 1.0f);
+	pointLight2.Position = glm::vec3(2.0f, 2.0f, 0.0f);
+	pointLight2.AmbientIntensity = 0.0f;
+	pointLight2.DiffuseIntensity = 0.4f;
+	pointLight2.Constant = 0.3f;
+	pointLight2.Linear = 0.01f;
+	pointLight2.Exponent = 0.01f;
+	g_PointLightOmniShadowMaps.emplace_back(1024, 1024);
 
-	pointLight[1].Color = glm::vec3(0.0f, 1.0f, 0.0f);
-	pointLight[1].Position = glm::vec3(-4.0f, 2.0f, 0.0f);
-	pointLight[1].AmbientIntensity = 0.0f;
-	pointLight[1].DiffuseIntensity = 0.1f;
-	pointLight[1].Constant = 0.3f;
-	pointLight[1].Linear = 0.1f;
-	pointLight[1].Exponent = 0.1f;
-	pointLightCount++;
+	UniformBuffer pointLightUB(sizeof(PointLight) * g_PointLights.size(), POINT_LIGHT_ARRAY_BINDING);
+	pointLightUB.SetData(g_PointLights.data());
 
-	UniformBuffer pointLightUB(sizeof(PointLight) * pointLightCount, POINT_LIGHT_ARRAY_BINDING);
-	pointLightUB.SetData(pointLight);
-	delete[] pointLight;
+	g_Shader.UploadUniformInt("u_PointLightCount", (int)g_PointLights.size());
 
-	g_Shader.UploadUniformInt("u_PointLightCount", pointLightCount);
+	SpotLight& spotLight1 = g_SpotLights.emplace_back();
+	spotLight1.Color = glm::vec3(1.0f);
+	spotLight1.AmbientIntensity = 0.0f;
+	spotLight1.DiffuseIntensity = 0.2f;
+	spotLight1.Position = glm::vec3(0.0f);
+	spotLight1.Direction = SpotLightDirection(glm::vec3(0.0f, -1.0f, 0.0f));
+	spotLight1.Constant = 1.0f;
+	spotLight1.Linear = 0.0f;
+	spotLight1.Exponent = 0.0f;
+	spotLight1.Edge = SpotLightEdge(20.0f);
+	g_SpotLightOmniShadowMaps.emplace_back(1024, 1024);
+
+	SpotLight& spotLight2 = g_SpotLights.emplace_back();
+	spotLight2.Color = glm::vec3(1.0f);
+	spotLight2.AmbientIntensity = 0.0f;
+	spotLight2.DiffuseIntensity = 1.0f;
+	spotLight2.Position = glm::vec3(0.0f, -1.5f, 0.0f);
+	spotLight2.Direction = SpotLightDirection(glm::vec3(-100.0f, -1.0f, 0.0f));
+	spotLight2.Constant = 1.0f;
+	spotLight2.Linear = 0.0f;
+	spotLight2.Exponent = 0.0f;
+	spotLight2.Edge = SpotLightEdge(20.0f);
+	g_SpotLightOmniShadowMaps.emplace_back(1024, 1024);
+
+	SpotLight& spotLight3 = g_SpotLights.emplace_back();
+	spotLight3.Color = glm::vec3(1.0f, 0.0f, 0.0f);
+	spotLight3.AmbientIntensity = 0.0f;
+	spotLight3.DiffuseIntensity = 1.0f;
+	spotLight3.Position = glm::vec3(1.5f, 1.5f, 0.0f);
+	spotLight3.Direction = SpotLightDirection(glm::vec3(-100.0f, -1.0f, 0.0f));
+	spotLight3.Constant = 1.0f;
+	spotLight3.Linear = 0.0f;
+	spotLight3.Exponent = 0.0f;
+	spotLight3.Edge = SpotLightEdge(40.0f);
+	g_SpotLightOmniShadowMaps.emplace_back(1024, 1024);
+
+	g_SpotLightUB = new UniformBuffer(sizeof(SpotLight) * g_SpotLights.size(), SPOT_LIGHT_ARRAY_BINDING);
+	g_SpotLightUB->SetData(g_SpotLights.data());
+
+	g_Shader.UploadUniformInt("u_SpotLightCount", (int)g_SpotLights.size());
 
 	CameraSpecification cameraSpec;
 	cameraSpec.Position = glm::vec3(0.0f, 0.0f, 5.0f);
 	cameraSpec.WorldUp = glm::vec3(0.0f, 1.0f, 0.0f);
-	cameraSpec.Yaw = -90.0f;
-	cameraSpec.Pitch = -45.0f;
+	cameraSpec.Yaw = -60.0f;
+	cameraSpec.Pitch = 0.0f;
 	cameraSpec.Speed = 5.0f;
 	cameraSpec.TurnSpeed = 10.0f;
 
 	Camera camera(cameraSpec);
 
-	const float aspectRatio = (float)window->GetWindowWidth() / (float)window->GetWindowHeight();
-	static glm::mat4 projection = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 100.0f);
+	const float aspectRatio = (float)g_Window->GetWindowWidth() / (float)g_Window->GetWindowHeight();
+	static glm::mat4 projection = glm::perspective(glm::radians(60.0f), aspectRatio, 0.1f, 100.0f);
 	g_Shader.UploadUniformMat4("u_Projection", projection);
 
 	static glm::mat4 lightProjection = glm::ortho(-20.0f, 20.0f, -20.0f, 20.0f, 0.1f, 100.0f);
@@ -281,23 +387,29 @@ int main()
 
 	static float lastFrameTime = 0.0f;
 
-	while (!window->ShouldClose())
+	while (!g_Window->ShouldClose())
 	{
-		float time = window->GetCurrentTime();
+		float time = g_Window->GetCurrentTime();
 		float deltaTime = time - lastFrameTime;
 		lastFrameTime = time;
 
 		camera.OnUpdate(deltaTime);
 
 		DirectionalShadowMapPass(shadowMap);
+		for (size_t i = 0; i < g_PointLights.size(); i++)
+			OmniShadowMapPass(g_PointLights[i], g_PointLightOmniShadowMaps[i]);
+		for (size_t i = 0; i < g_SpotLights.size(); i++)
+			OmniShadowMapPass(g_SpotLights[i], g_SpotLightOmniShadowMaps[i]);
 		RenderPass(camera, shadowMap);
 
-		window->OnUpdate();
+		g_Window->OnUpdate();
 	}
 
 	delete g_xWingModel;
 	delete g_BlackHawkModel;
-	delete window;
+	delete g_MaterialUB;
+	delete g_SpotLightUB;
+	delete g_Window;
 
 	return 0;
 }

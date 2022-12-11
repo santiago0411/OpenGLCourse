@@ -30,6 +30,7 @@ public:
 	bool Init();
 	bool ShouldClose() const;
 	void OnUpdate() const;
+	void Close();
 
 	void SetEventCallback(const EventCallbackFunction& callback) { m_EventCallback = callback; }
 

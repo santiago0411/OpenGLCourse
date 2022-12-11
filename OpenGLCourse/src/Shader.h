@@ -11,12 +11,15 @@ public:
 	Shader() = default;
 	~Shader() = default;
 
-	void CreateFromString(const std::string& vertexString, const std::string& fragmentString);
 	void CreateFromString(const std::string& vertexString);
-	void CreateFromFile(const std::filesystem::path& vertexPath, const std::filesystem::path& fragmentPath);
+	void CreateFromString(const std::string& vertexString, const std::string& geometryString, const std::string& fragmentString);
+	void CreateFromString(const std::string& vertexString, const std::string& fragmentString);
 	void CreateFromFile(const std::filesystem::path& vertexPath);
+	void CreateFromFile(const std::filesystem::path& vertexPath, const std::filesystem::path& fragmentPath);
+	void CreateFromFile(const std::filesystem::path& vertexPath, const std::filesystem::path& geometryPath, const std::filesystem::path& fragmentPath);
 
 	void Bind() const;
+	void Validate() const;
 
 	void UploadUniformInt(const std::string& name, int value) const;
 	void UploadUniformFloat(const std::string& name, float value) const;
@@ -25,7 +28,7 @@ public:
 
 private:
 	static uint32_t AddShader(uint32_t program, const std::string& shaderCode, uint32_t shaderType);
-	void CompileShader(const std::string& vertexString, const std::string& fragmentString);
+	void CompileShader(const std::string& vertexString, const std::string& geometryString, const std::string& fragmentString);
 
 private:
 	uint32_t m_ShaderId = 0;
