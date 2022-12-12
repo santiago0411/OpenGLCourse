@@ -13,6 +13,7 @@
 #include "OmniShadowMap.h"
 #include "Shader.h"
 #include "ShadowMap.h"
+#include "Skybox.h"
 #include "Texture2D.h"
 #include "UniformBuffer.h"
 #include "Window.h"
@@ -59,6 +60,9 @@ std::vector<OmniShadowMap> g_PointLightOmniShadowMaps;
 
 std::vector<SpotLight> g_SpotLights;
 std::vector<OmniShadowMap> g_SpotLightOmniShadowMaps;
+
+#define ASPECT_RATIO ((float)WINDOW_WIDTH / (float)WINDOW_HEIGHT)
+static glm::mat4 g_CameraProjection = glm::perspective(glm::radians(60.0f), ASPECT_RATIO, 0.1f, 100.0f);
 
 constexpr float ToRadians(const float& value)
 {
@@ -210,10 +214,12 @@ static void OmniShadowMapPass(const PointLight& light, const OmniShadowMap& shad
 	shadowMap.EndWrite();
 }
 
-static void RenderPass(const Camera& camera, const ShadowMap& shadowMap)
+static void RenderPass(const Camera& camera, const ShadowMap& shadowMap, const Skybox& skybox)
 {
 	OpenGLContext::SetViewport(WINDOW_WIDTH, WINDOW_HEIGHT);
 	OpenGLContext::Clear();
+
+	skybox.Draw(camera.CalculateViewMatrix(), g_CameraProjection);
 
 	g_Shader.Bind();
 	g_Shader.UploadUniformFloat3("u_EyePosition", camera.GetPosition());
@@ -289,14 +295,15 @@ int main()
 	g_OmniDirectionalShadowShader.CreateFromFile("./assets/shaders/OmniShadowMap.vert", "./assets/shaders/OmniShadowMap.geom", "./assets/shaders/OmniShadowMap.frag");
 
 	DirectionalLight dirLight;
-	dirLight.Color = glm::vec3(1.0f);
-	dirLight.Direction = glm::vec3(0.0f, -15.0f, -10.0f);
-	dirLight.AmbientIntensity = 0.0f;
-	dirLight.DiffuseIntensity = 0.1f;
+	dirLight.Color = glm::vec3(1.0f, 0.9f, 0.3f);
+	dirLight.Direction = glm::vec3(-10.0f, -12.0f, 18.5f);
+	dirLight.AmbientIntensity = 0.1f;
+	dirLight.DiffuseIntensity = 0.8f;
 	ShadowMap shadowMap(2048, 2048);
 
 	UniformBuffer dirLightUB(sizeof(DirectionalLight), DIRECTIONAL_LIGHT_BINDING);
 	dirLightUB.SetData(&dirLight);
+
 
 	PointLight& pointLight1 = g_PointLights.emplace_back();
 	pointLight1.Color = glm::vec3(0.0f, 1.0f, 0.0f);
@@ -304,8 +311,8 @@ int main()
 	pointLight1.AmbientIntensity = 0.0f;
 	pointLight1.DiffuseIntensity = 0.4f;
 	pointLight1.Constant = 0.3f;
-	pointLight1.Linear = 0.01f;
-	pointLight1.Exponent = 0.01f;
+	pointLight1.Linear = 0.2f;
+	pointLight1.Exponent = 0.1f;
 	g_PointLightOmniShadowMaps.emplace_back(1024, 1024);
 
 	PointLight& pointLight2 = g_PointLights.emplace_back();
@@ -314,8 +321,8 @@ int main()
 	pointLight2.AmbientIntensity = 0.0f;
 	pointLight2.DiffuseIntensity = 0.4f;
 	pointLight2.Constant = 0.3f;
-	pointLight2.Linear = 0.01f;
-	pointLight2.Exponent = 0.01f;
+	pointLight2.Linear = 0.2f;
+	pointLight2.Exponent = 0.1f;
 	g_PointLightOmniShadowMaps.emplace_back(1024, 1024);
 
 	UniformBuffer pointLightUB(sizeof(PointLight) * g_PointLights.size(), POINT_LIGHT_ARRAY_BINDING);
@@ -373,10 +380,7 @@ int main()
 	cameraSpec.TurnSpeed = 10.0f;
 
 	Camera camera(cameraSpec);
-
-	const float aspectRatio = (float)g_Window->GetWindowWidth() / (float)g_Window->GetWindowHeight();
-	static glm::mat4 projection = glm::perspective(glm::radians(60.0f), aspectRatio, 0.1f, 100.0f);
-	g_Shader.UploadUniformMat4("u_Projection", projection);
+	g_Shader.UploadUniformMat4("u_Projection", g_CameraProjection);
 
 	static glm::mat4 lightProjection = glm::ortho(-20.0f, 20.0f, -20.0f, 20.0f, 0.1f, 100.0f);
 	const glm::mat4 lightTransform = CalculateLightTransform(dirLight, lightProjection);
@@ -384,6 +388,17 @@ int main()
 
 	g_DirectionalShadowShader.Bind();
 	g_DirectionalShadowShader.UploadUniformMat4("u_LightSpaceTransform", lightTransform);
+
+	std::vector<std::string> skyboxFaces {
+		"./assets/textures/Skybox/cupertin-lake_rt.tga",
+		"./assets/textures/Skybox/cupertin-lake_lf.tga",
+		"./assets/textures/Skybox/cupertin-lake_up.tga",
+		"./assets/textures/Skybox/cupertin-lake_dn.tga",
+		"./assets/textures/Skybox/cupertin-lake_bk.tga",
+		"./assets/textures/Skybox/cupertin-lake_ft.tga",
+	};
+
+	Skybox skybox(skyboxFaces);
 
 	static float lastFrameTime = 0.0f;
 
@@ -400,7 +415,7 @@ int main()
 			OmniShadowMapPass(g_PointLights[i], g_PointLightOmniShadowMaps[i]);
 		for (size_t i = 0; i < g_SpotLights.size(); i++)
 			OmniShadowMapPass(g_SpotLights[i], g_SpotLightOmniShadowMaps[i]);
-		RenderPass(camera, shadowMap);
+		RenderPass(camera, shadowMap, skybox);
 
 		g_Window->OnUpdate();
 	}
