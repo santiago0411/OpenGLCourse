@@ -1,3 +1,2 @@
-# OpenGLTemplate
-A template project to easily start writing an OpenGL application.
-Includes GLFW, Glad, glm and ImGui.
+# OpenGLCourse
+Application developed based on an OpenGL course to learn basic rendering techniques.
